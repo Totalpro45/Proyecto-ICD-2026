@@ -4,7 +4,7 @@
 **Caso de estudio:** La Habana, Cuba
 **Estado:** en desarrollo
 
-Trabajo de la asignatura **ICD 2026**, primer año de Ciencias de Datos. No es una
+Trabajo de la asignatura **Introducción a la Ciencia de Datos**, primer año de Ciencias de Datos. No es una
 aplicación comercial ni un servicio web: es un proyecto de análisis de datos con
 fines exclusivamente académicos.
 
@@ -32,8 +32,6 @@ Se han identificado los siguientes portales como posibles fuentes de anuncios:
 - Revolico
 - GAOS
 - Mambbu
-- CasasOasis (evaluada, pero excluida por ahora de la extracción automatizada
-  hasta contar con autorización).
 
 Cada portal se transformará a un **esquema de datos común** que permita
 consolidar y comparar la información (ver `docs/decisiones.md`).
@@ -91,7 +89,7 @@ encuentra en trámite.
 ## Uso de los datos
 
 Los datos se utilizarán **exclusivamente con fines académicos y de análisis
-estadístico**, en el marco de la asignatura ICD 2026.
+estadístico**, en el marco de la asignatura Introduccion a la Ciencia de Datos.
 
 - No hay uso comercial.
 - No se redistribuirán los datos de elTOQUE ni se publicarán volcados de su API.
@@ -172,8 +170,6 @@ etapa se documentará antes de continuar.
 
 ## Alcance y limitaciones
 
-- Es un trabajo de primer año: prioriza la claridad y la trazabilidad sobre la
-  complejidad técnica.
 - Los anuncios no representan todas las transacciones ni todo el mercado.
 - Los resultados dependerán de la cobertura real de los datos y se reportará el
   tamaño de muestra de cada cálculo.
