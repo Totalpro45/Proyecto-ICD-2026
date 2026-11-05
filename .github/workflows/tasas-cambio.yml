@@ -56,24 +56,31 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/raw/exchange_rates/historial_tasas.json
           git commit -m "feat(tasas): agregar cotización diaria de elTOQUE"
-          mkdir -p artifacts
-          cp data/raw/exchange_rates/historial_tasas.json artifacts/historial_tasas.json
+          mkdir -p "$RUNNER_TEMP"
+          cp data/raw/exchange_rates/historial_tasas.json "$RUNNER_TEMP/historial_tasas.json"
           git fetch origin main:refs/remotes/origin/main
-          git rebase origin/main || {
-            git rebase --abort
-            echo "Error: Conflicto en el rebase. El historial se guardó como artefacto antes del rebase."
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::El directorio de trabajo no está limpio antes del rebase."
+            git status --short
             exit 1
-          }
-
-      - name: Guardar cotizaciones como artefacto si el rebase falló
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: historial-tasas-fallido
-          path: artifacts/historial_tasas.json
-          retention-days: 7
+          fi
+          if git rebase origin/main; then
+            echo "Rebase completado correctamente."
+          else
+            git rebase --abort || true
+            echo "::error::El rebase falló. El respaldo está en $RUNNER_TEMP/historial_tasas.json."
+            exit 1
+          fi
 
       - name: Push de tasas nuevas
         if: steps.git-status.outputs.cambio == '1' && success()
         run: |
           git push origin main
+
+      - name: Guardar cotizaciones como artefacto si el rebase o el push falló
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: historial-tasas-fallido
+          path: ${{ runner.temp }}/historial_tasas.json
+          retention-days: 7
