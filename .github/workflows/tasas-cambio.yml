@@ -1,0 +1,54 @@
+name: Captura diaria de tasas de cambio (elTOQUE)
+
+on:
+  schedule:
+    # Ejecución diaria a las 08:00 UTC (03:00 hora de Cuba, UTC-5)
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+    # Permite ejecución manual desde la pestaña Actions de GitHub
+
+jobs:
+  capturar-tasas:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Permite hacer commit del historial de tasas
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Ejecutar captura de tasas de elTOQUE
+        env:
+          ELTOQUE_API_TOKEN: ${{ secrets.ELTOQUE_API_TOKEN }}
+        run: |
+          python -m src.exchange_rates.capturar
+
+      - name: Verificar si hay cambios para commitear
+        id: git-status
+        run: |
+          if git diff --quiet data/raw/exchange_rates/historial_tasas.json; then
+            echo "cambio=0" >> $GITHUB_OUTPUT
+          else
+            echo "cambio=1" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit de tasas nuevas
+        if: steps.git-status.outputs.cambio == '1'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/raw/exchange_rates/historial_tasas.json
+          git commit -m "feat(tasas): agregar cotización diaria de elTOQUE"
+          git push

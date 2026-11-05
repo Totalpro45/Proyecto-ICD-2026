@@ -123,8 +123,8 @@ el sistema de pruebas funcionando.
 | Plan de análisis | Documentado |
 | Diseño del sistema de tasas | Documentado, no implementado |
 | Extracción de anuncios | En desarrollo (GAOS implementado) |
-| Integración con la API de elTOQUE | Pendiente de acceso |
-| Limpieza y consolidación | Implementada parcialmente (`src/data/normalization.py`, `src/data/mapper.py`) |
+| Integración con la API de elTOQUE | Implementado (`src/exchange_rates/`) |
+| Limpieza y consolidación | Implementada (`src/data/normalization.py`, `src/data/mapper.py`) |
 | Análisis y visualizaciones | No iniciados |
 
 ## Estructura del repositorio
@@ -175,6 +175,41 @@ El extractor de GAOS (`src/sources/gaos.py`) permite obtener anuncios de
 viviendas en venta de La Habana mediante el Edge Function público de Supabase
 utilizado por el portal. Requiere la `apikey` pública de Supabase (rol `anon`)
 que se configura en el propio módulo.
+
+## Automatización de tasas de cambio (GitHub Actions)
+
+El proyecto incluye un workflow de GitHub Actions que consulta la API de elTOQUE
+una vez al día y guarda las cotizaciones en el historial de tasas de cambio.
+
+### Configurar el secreto en GitHub
+
+Antes de que el workflow funcione, debes agregar la clave API de elTOQUE como
+secreto del repositorio:
+
+1. Ve a **Settings** → **Secrets and variables** → **Actions** en GitHub.
+2. Haz clic en **New repository secret**.
+3. Nombre: `ELTOQUE_API_TOKEN`
+4. Valor: la clave API que obtuviste en `https://tasas-token.eltoque.com/`
+5. Haz clic en **Add secret**.
+
+### Ejecutar el workflow manualmente
+
+Desde la pestaña **Actions** de GitHub, selecciona el workflow
+**"Captura diaria de tasas de cambio (elTOQUE)"** y haz clic en
+**Run workflow**.
+
+### Qué hace el workflow
+
+1. Descarga el repositorio e instala Python y las dependencias.
+2. Ejecuta `src/exchange_rates/capturar.py`, que consulta la API de elTOQUE
+   y guarda las cotizaciones nuevas en
+   `data/raw/exchange_rates/historial_tasas.json`.
+3. Si hay cambios, los commitea y sube a la rama principal.
+4. Si no hay novedad (misma cotización que la anterior), no crea commit.
+
+El historial se guarda en `data/raw/exchange_rates/historial_tasas.json`.
+Este archivo es el único de `data/` que se versiona; el resto de los datos
+locales no se suben a GitHub.
 
 ## Documentación
 
