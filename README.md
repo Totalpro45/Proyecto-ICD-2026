@@ -113,18 +113,18 @@ lo justifica.
 
 ## Estado actual
 
-El proyecto está **en desarrollo**. Todavía no hay código ejecutable ni datos
-recopilados.
+El proyecto está **en desarrollo**. Cuenta con el esqueleto del código fuente y
+el sistema de pruebas funcionando.
 
 | Etapa | Estado |
 |---|---|
 | Estructura del repositorio | Hecha |
-| Esquema de datos común | Documentado (borrador) |
+| Esquema de datos común | Documentado e implementado (`src/data/models.py`) |
 | Plan de análisis | Documentado |
 | Diseño del sistema de tasas | Documentado, no implementado |
-| Extracción de anuncios | No iniciada |
+| Extracción de anuncios | En desarrollo (GAOS implementado) |
 | Integración con la API de elTOQUE | Pendiente de acceso |
-| Limpieza y consolidación | No iniciada |
+| Limpieza y consolidación | Implementada parcialmente (`src/data/normalization.py`, `src/data/mapper.py`) |
 | Análisis y visualizaciones | No iniciados |
 
 ## Estructura del repositorio
@@ -135,12 +135,20 @@ recopilados.
 │   ├── decisiones.md
 │   ├── especificacion_analisis.md
 │   └── sistema_tasas_cambio.md
+├── src/                   Código fuente
+│   ├── data/              Modelo, normalización y mapeo de datos
+│   ├── sources/           Extractores de fuentes inmobiliarias
+│   │   └── revolico.py    (extracción de __NEXT_DATA__, no implementado)
+│   │   └── gaos.py        (extractor de GAOS implementado)
+│   ├── exchange_rates/    Sistema de tasas de cambio (no implementado)
+│   └── analysis/          Análisis y visualizaciones (no implementado)
+├── tests/                 Pruebas del proyecto
 ├── requirements.txt
 └── README.md
 ```
 
-Las carpetas `data/`, `src/`, `notebooks/` y `outputs/` se crearán cuando empiece
-la implementación. Los datos locales no se versionan.
+Las carpetas `data/`, `notebooks/` y `outputs/` se crearán cuando empiece
+la recopilación de datos. Los datos locales no se versionan.
 
 ## Requisitos e instalación
 
@@ -152,12 +160,43 @@ la implementación. Los datos locales no se versionan.
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 py -m pip install -r requirements.txt
+py -m pip install pytest
 ```
 
 ## Uso
 
-Aún no hay código ejecutable. El desarrollo se hará por etapas pequeñas y cada
-etapa se documentará antes de continuar.
+El proyecto cuenta con pruebas automatizadas (`pytest`). Para ejecutarlas:
+
+```powershell
+py -m pytest tests/ -q
+```
+
+El extractor de GAOS (`src/sources/gaos.py`) permite obtener anuncios de
+viviendas en venta de La Habana mediante el Edge Function público de Supabase
+utilizado por el portal. Requiere la `apikey` pública de Supabase (rol `anon`)
+que se configura en el propio módulo.
+
+## Documentación
+
+- [`docs/decisiones.md`](docs/decisiones.md): esquema de datos común, políticas y
+  decisiones del proyecto, incluidas las pruebas de acceso a Revolico, GAOS y
+  Mambbu.
+- [`docs/especificacion_analisis.md`](docs/especificacion_analisis.md): plan de
+  análisis, variables, cálculos y limitaciones.
+- [`docs/sistema_tasas_cambio.md`](docs/sistema_tasas_cambio.md): diseño del
+  registro de tasas de cambio.
+
+## Alcance y limitaciones
+
+- Es un trabajo de primer año: prioriza la claridad y la trazabilidad sobre la
+  complejidad técnica.
+- Los anuncios no representan todas las transacciones ni todo el mercado.
+- Los resultados dependerán de la cobertura real de los datos y se reportará el
+  tamaño de muestra de cada cálculo.
+- Las conclusiones serán descriptivas; no se afirmarán relaciones causales.
+- Revolico y GAOS presentan restricciones de acceso (HTTP 403 y 429
+  respectivamente desde `requests`). Mambbu prohíbe la extracción automatizada
+  en sus términos de uso. Consulte `docs/decisiones.md` §8 y §10 para detalles.
 
 ## Documentación
 

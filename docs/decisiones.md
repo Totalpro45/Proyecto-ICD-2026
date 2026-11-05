@@ -260,6 +260,9 @@ observado, pendiente de confirmar.
 - [V] Términos de uso públicos en
   `https://help.revolico.com/es/articles/7263759-condiciones-de-uso`; no
   constituyen un permiso explícito de scraping.
+- [V] **Prueba de acceso (2026-11-04):** petición HTTP GET a la URL de listado
+  de La Habana devuelve **HTTP 403**. No se obtuvo el HTML de la página ni se
+  pudo inspeccionar el bloque `__NEXT_DATA__`. No se intentó eludir el bloqueo.
 
 ### 8.2 GAOS
 
@@ -278,6 +281,9 @@ observado, pendiente de confirmar.
   `https://gaos.app/sitemap.xml`.
 - [V] No se encontró página pública de Términos de Servicio; sí Política de
   Privacidad (`/es/privacidad`). Sin permiso explícito de scraping.
+- [V] **Prueba de acceso (2026-11-04):** petición HTTP GET a la URL de listado
+  de La Habana devuelve **HTTP 429**. Se recibe una página de "Vercel Security
+  Checkpoint" sin contenido útil. No se intentó eludir el bloqueo.
 
 ### 8.3 Mambbu
 
@@ -296,8 +302,17 @@ observado, pendiente de confirmar.
 - [V] `robots.txt`: permisivo salvo rutas privadas (`/admin/`, `/agencia/`,
   `/agente/`, `/login`, `/registro`). Sitemap con fichas individuales y páginas
   por tipo/municipio.
-- [V] Términos, Privacidad y Cookies son enlaces `#` no publicados. Sin permiso
-  explícito de scraping.
+- [V] Términos, Privacidad y Cookies publicados en `/terminos`, `/privacidad`
+  y `/cookies`. La sección 8 de los términos de uso prohíbe **expresamente**
+  copiar el portal ni extraer sus anuncios de forma automatizada sin
+  autorización. No se encontró un mecanismo funcional de contacto para solicitar
+  dicha autorización (los documentos indican `[COMPLETAR: email de contacto]`).
+- [V] **Prueba de acceso (2026-11-04):** petición HTTP GET a la URL de listado
+  de propiedades devuelve **HTTP 200**. El HTML (321 KB) contiene anuncios
+  renderizados por Astro con campos como precio, moneda, habitaciones,
+  metros cuadrados, municipio y provincia. Los anuncios están en el HTML,
+  no en un bloque JSON-LD ni en `__NEXT_DATA__`. No se guardaron anuncios
+  ni datos personales.
 
 ### 8.4 CasasOasis
 
@@ -315,10 +330,15 @@ observado, pendiente de confirmar.
 - **Revolico:** `robots.txt`; listado de La Habana
   (`/search?category=inmobiliaria&province=la-habana&subcategory=inmobiliaria-casas`);
   condiciones de uso en `help.revolico.com`.
+  **Prueba de acceso:** HTTP 403 en la URL de listado (2026-11-04).
 - **GAOS:** `robots.txt`; portada; `/venta-viviendas/la-habana`;
   `sitemap.xml`; `/es/privacidad`.
+  **Prueba de acceso:** HTTP 429 en la URL de listado, `robots.txt` y
+  `/es/privacidad` (2026-11-04); página de Vercel Security Checkpoint.
 - **Mambbu:** `robots.txt`; `/propiedades`; `/propiedades?page=2`;
-  `sitemap.xml`; `/sobre-mambbu`.
+  `sitemap.xml`; `/sobre-mambbu`; `/terminos`; `/privacidad`; `/cookies`.
+  **Prueba de acceso:** HTTP 200 en `/propiedades` (2026-11-04). Los términos
+  de uso prohíben la extracción automatizada sin autorización.
 - **CasasOasis:** `robots.txt` (y resultados de búsqueda; **sin** acceder a su
   catálogo).
 
@@ -326,9 +346,9 @@ observado, pendiente de confirmar.
 
 | Fuente | Identificador | Paginación conocida | Estado |
 |---|---|---|---|
-| Revolico | id numérico en `/item/<slug>-<id>` | `?page=N` [V] | Falta confirmar total y fin de lista |
-| GAOS | UUID en `/properties/<uuid>` | No verificada | **Pendiente** |
-| Mambbu | slug en `/propiedades/<slug>` | "Cargar más" [V] | **Pendiente** (endpoint/JS) |
+| Revolico | id numérico en `/item/<slug>-<id>` | `?page=N` [V] | HTTP 403 en acceso (2026-11-04); implementación pendiente de vía de acceso |
+| GAOS | UUID en `/properties/<uuid>` | No verificada | HTTP 429 en acceso (2026-11-04); implementación pendiente de vía de acceso |
+| Mambbu | slug en `/propiedades/<slug>` | "Cargar más" [V] | HTTP 200 en acceso (2026-11-04), pero términos prohíben extracción automatizada sin autorización; implementación pendiente de autorización |
 | CasasOasis | No inspeccionado | No aplica | Excluida |
 
 ---
@@ -355,8 +375,21 @@ observado, pendiente de confirmar.
 - **Candidatas a extracción:** Revolico, GAOS y Mambbu, **sujetas a verificar
   las condiciones de acceso y uso** antes de automatizar.
 - **Excluida:** CasasOasis, mientras no haya autorización expresa.
+- **Resultado de pruebas de acceso (2026-11-04):**
+  - **Revolico:** HTTP 403. No se obtuvo HTML ni se pudo inspeccionar
+    `__NEXT_DATA__`.
+  - **GAOS:** HTTP 429. Página de Vercel Security Checkpoint, sin contenido útil.
+  - **Mambbu:** HTTP 200. Los anuncios aparecen en HTML generado por Astro, pero
+    la sección 8 de sus términos de uso prohíbe expresamente la extracción
+    automatizada de anuncios sin autorización. El `robots.txt` permite el acceso
+    general, pero no sustituye la autorización exigida en los términos. No se
+    encontró un mecanismo funcional para solicitar autorización.
 - `robots.txt` **no equivale por sí solo a una autorización de scraping**:
   debe revisarse además las condiciones de uso aplicables de cada portal.
+- No se deben evadir bloqueos, sistemas anti-bots ni restricciones de acceso.
+- Las tres fuentes (Revolico, GAOS y Mambbu) siguen siendo las fuentes objetivo
+  del proyecto. Su implementación queda pendiente de encontrar vías de acceso
+  adecuadas (autorización expresa, API oficial u otra vía legítima).
 
 ---
 
