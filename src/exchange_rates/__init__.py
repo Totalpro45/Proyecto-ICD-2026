@@ -7,7 +7,7 @@ No contiene lógica de negocio de conversión de precios; solo obtiene y
 devuelve cotizaciones crudas con su procedencia y fecha.
 """
 
-from exchange_rates.eltoque import (
+from .eltoque import (
     ElToqueAuthError,
     ElToqueConnectionError,
     ElToqueError,

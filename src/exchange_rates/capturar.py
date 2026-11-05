@@ -16,14 +16,14 @@ from __future__ import annotations
 import sys
 from datetime import datetime, timezone
 
-from exchange_rates.eltoque import (
+from .eltoque import (
     consultar_tasas,
     extraer_cotizaciones,
     ElToqueAuthError,
     ElToqueConnectionError,
     ElToqueError,
 )
-from exchange_rates import almacenamiento
+from . import almacenamiento
 
 
 def main() -> int:
