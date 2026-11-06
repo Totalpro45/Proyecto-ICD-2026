@@ -18,6 +18,7 @@ data/raw/
 !data/raw/
 !data/raw/exchange_rates/
 !data/raw/exchange_rates/historial_tasas.json
+data/raw/exchange_rates/historial_tasas.json.bak
 data/processed/
 outputs/
 
