@@ -1,6 +1,6 @@
 {
   "version_esquema": "1.0",
-  "ultima_actualizacion": "2026-11-06T15:42:37.409552+00:00",
+  "ultima_actualizacion": "2026-11-07T14:43:38.246415+00:00",
   "cotizaciones": [
     {
       "id": "300291b6-e795-4040-8f7b-61251d4f1de9",
@@ -153,6 +153,44 @@
       "estado": "valida",
       "motivo_sospecha": null,
       "reemplaza_a": null
+    },
+    {
+      "id": "239a639f-7051-42ed-b97c-bd60dc50b878",
+      "id_actualizacion": "96796e02-e42a-4e30-a2b7-96428206fb53",
+      "fuente": null,
+      "categoria": null,
+      "tipo_tasa": "no_especificado",
+      "segmento": null,
+      "moneda_origen": "MLC",
+      "moneda_destino": "CUP",
+      "valor": 692.18,
+      "valor_texto_original": "692.18",
+      "fecha_publicacion": "2026-11-07T09:50:02",
+      "fecha_vigencia": null,
+      "fecha_captura": "2026-11-07T14:43:38.245570+00:00",
+      "url_fuente": null,
+      "estado": "valida",
+      "motivo_sospecha": null,
+      "reemplaza_a": null
+    },
+    {
+      "id": "98bf52e8-9960-49d8-8912-1da8f9981dfd",
+      "id_actualizacion": "96796e02-e42a-4e30-a2b7-96428206fb53",
+      "fuente": null,
+      "categoria": null,
+      "tipo_tasa": "no_especificado",
+      "segmento": null,
+      "moneda_origen": "USD",
+      "moneda_destino": "CUP",
+      "valor": 930.0,
+      "valor_texto_original": "930.0",
+      "fecha_publicacion": "2026-11-07T09:50:02",
+      "fecha_vigencia": null,
+      "fecha_captura": "2026-11-07T14:43:38.245597+00:00",
+      "url_fuente": null,
+      "estado": "valida",
+      "motivo_sospecha": null,
+      "reemplaza_a": null
     }
   ],
   "actualizaciones": [
@@ -208,6 +246,22 @@
       "id": "29463b08-6ada-41b6-9bbe-5efc2053c9ae",
       "fecha_inicio": "2026-11-06T15:42:36.485554+00:00",
       "fecha_fin": "2026-11-06T15:42:37.409552+00:00",
+      "fuentes_consultadas": [
+        "eltoque"
+      ],
+      "resultado_por_fuente": [
+        {
+          "fuente": "eltoque",
+          "estado": "ok",
+          "cotizaciones_nuevas": 2,
+          "incidencias": 0
+        }
+      ]
+    },
+    {
+      "id": "96796e02-e42a-4e30-a2b7-96428206fb53",
+      "fecha_inicio": "2026-11-07T14:43:37.347394+00:00",
+      "fecha_fin": "2026-11-07T14:43:38.246415+00:00",
       "fuentes_consultadas": [
         "eltoque"
       ],
