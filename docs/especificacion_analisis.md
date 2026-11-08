@@ -2,7 +2,7 @@
 
 **Proyecto:** ¿Es asequible el precio de la vivienda para el cubano promedio?
 **Caso de estudio:** La Habana
-**Estado:** borrador de planificación; no contiene código ni resultados.
+**Estado:** borrador de planificación; incluye resultados del análisis exploratorio de precios sobre capturas reales de GAOS y Revolico.
 **Documento relacionado:** `docs/decisiones.md` (esquema de datos común y políticas).
 
 Este documento traduce las preguntas del proyecto en un **plan de análisis de

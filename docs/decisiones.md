@@ -600,3 +600,134 @@ informales no se mezclan. Cada conversión se rastrea mediante `tasa_id` (ver
   documenta que los datos de ElToque son informativos y no representan
   necesariamente todas las operaciones del mercado, y se prohíbe mezclar o
   promediar cotizaciones de ambas fuentes.
+
+---
+
+## 13. Almacenamiento y unificación de capturas de anuncios
+
+### 13.1 Almacenamiento por fuente
+
+Cada fuente de anuncios (GAOS, Revolico) tiene sus propios archivos de captura
+cruda y procesada, organizados en carpetas independientes:
+
+- `data/raw/anuncios/<fuente>/crudo/` — datos crudos tal como llegan del portal.
+- `data/processed/anuncios/<fuente>/` — anuncios ya mapeados al esquema común.
+
+Cada ejecución guarda un par de archivos (crudo y procesado) con el mismo
+`id_captura` y `fecha_captura`, para que crudos y procesados siempre puedan
+relacionarse. Nunca se sobrescribe un archivo existente: cada ejecución genera
+un nombre de archivo distinto.
+
+### 13.2 Unificación de capturas
+
+El módulo `src/data/unificacion.py` combina las capturas crudas y procesadas de
+diferentes fuentes en un único archivo JSON, sin modificar los archivos
+originales.
+
+**Características:**
+
+- Recibe las rutas de los archivos crudo y procesado de cada fuente.
+- Añade el campo `fuente` a cada anuncio para identificar su procedencia.
+- Para Revolico, aplica el mapeador `mapear_anuncio_revolico` (que incluye la
+  clasificación de tipo de inmueble: `casa`, `apartamento`, `indeterminado`,
+  `no_vivienda`) en lugar de usar el valor hardcodeado `"casa"`.
+- Para GAOS, mantiene los metadatos ya existentes (`fuente: "gaos"`).
+- Genera un `id_captura` único para la captura unificada.
+- Registra en `capturas_origen` los metadatos de cada captura de origen
+  (id_captura, fecha_captura, archivo, cantidad de anuncios).
+
+**Resultado:** un archivo JSON con todos los anuncios unificados, donde cada
+registro conserva su `fuente` (`gaos` o `revolico`) y su `id_fuente` original,
+permitiendo distinguir claramente la procedencia de cada anuncio.
+
+### 13.3 Metadatos de fuente
+
+Cada archivo de captura incluye en su envoltorio los campos `fuente` y
+`url_fuente` que identifican el portal de origen. Cada anuncio individual
+también incluye el campo `fuente`. Para archivos históricos de Revolico
+capturados antes de esta corrección, los metadatos pueden contener
+`fuente: "gaos"` y `url_fuente: "https://gaos.app/propiedades"` debido a un
+error previo en la extracción; dichos archivos no se modifican y se conservan
+como están.
+
+---
+
+## 15. Datos salariales de referencia
+
+### 15.1 Procedencia y naturaleza de los datos
+
+Los datos salariales utilizados en este proyecto provienen del documento
+`salarios_cuba_gaceta_2026.pdf`, que es una **estructuración secundaria**
+realizada a partir de la Gaceta Oficial Ordinaria No. 60 (Resoluciones
+12/2026 a 26/2026). No es la publicación original de las Resoluciones, por lo
+que los valores aquí registrados deben considerarse **referencia secundaria**
+y requieren contraste con las Resoluciones originales para cualquier uso
+jurídico o definitivo.
+
+Todos los salarios están expresados en Pesos Cubanos (CUP).
+
+### 15.2 Conjuntos de datos
+
+Se mantienen tres archivos independientes en `data/reference/salarios/`:
+
+#### `escala_general.csv`
+
+Contiene los 32 grupos de complejidad de la Escala Salarial Única del Sector
+Presupuestado (Resolución 15/2026), con los valores del salario base mensual
+para regímenes de 44 horas y 40 horas semanales. Cada grupo aparece una sola
+vez, ordenado del Grupo I al Grupo XXXII.
+
+#### `cargos_sectoriales.csv`
+
+Contiene 51 cargos de distintas fuentes sectoriales (Salud Pública, Educación
+General, Educación Superior, Ciencia y Tecnología, Poder Popular, Prensa y
+Medios, Cultura, Deporte, Servicio Exterior), con su identificador de fuente,
+resolución aplicable, grupo de escala, salario base mensual en CUP y jornada
+laboral.
+
+**Clasificación de los cargos:**
+
+- **42 cargos** se clasifican con la **escala general** (grupos I a XXXII de
+  la Resolución 15/2026).
+- **5 cargos** pertenecen al sector **Deporte** y utilizan una clasificación
+  propia (Categorías 1 a 5 de la Resolución 12/26), no equivalente a los
+  grupos de escala general.
+- **4 cargos** pertenecen a **Servicio Exterior** y utilizan una clasificación
+  propia (Grupos I a IX de la Resolución 26/26), no equivalente a los grupos
+  de escala general.
+
+**Nota:** Los grupos del Servicio Exterior (Grupo I, II, VII, IX) no son
+equivalentes a los grupos del escalafón general del sector presupuestado, a
+pesar de compartir la notación numérica.
+
+#### `pagos_adicionales.csv`
+
+Contiene 8 tipos de bonificaciones y coeficientes de ajuste (bonos por
+antigüedad, grado científico, nocturnidad, condiciones especiales), con sus
+respectivos importes, unidades y condiciones de aplicación.
+
+**Estos pagos NO se suman automáticamente al salario base de ningún cargo.**
+Se almacenan por separado para uso futuro, y su aplicación a cargos
+específicos requiere información adicional no disponible en el documento
+fuente.
+
+### 15.3 Limitaciones
+
+- Los datos son precios salariales nominales en CUP, no salarios netos ni
+  ingresos efectivos de los trabajadores.
+- No se incluyen datos de gastos de vida, remesas, pluriempleo ni ingresos
+  informales.
+- No existe tasa de cambio documentada en este documento para convertir
+  salarios CUP a otras monedas.
+- Las bonificaciones no están vinculadas a cargos específicos del dataset
+  sectorial; su aplicación a cargos específicos requiere información
+  adicional no disponible en el documento fuente.
+- La bonificación de antigüedad por 30 años o más incluye un incremento
+  adicional de 400 CUP por cada dos años adicionales, según se indica en
+  el documento fuente; sin embargo, no se ha podido determinar si existe
+  un límite máximo para este incremento.
+
+---
+
+## 14. Registro de cambios
+

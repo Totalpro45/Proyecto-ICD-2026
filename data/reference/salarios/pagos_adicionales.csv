@@ -1,0 +1,9 @@
+concepto,beneficiarios,regulacion,monto,unidad,tipo_variable
+Grado Científico de Doctor (PhD),Profesionales en cargos con perfil universitario,Res. 15,825,CUP/mes,Suma fija mensual
+Categoría Máster / Especialidad,Profesionales en cargos con perfil universitario,Res. 15,440,CUP/mes,Suma fija mensual
+Antigüedad: 5 a 14 años,Médicos, Docentes, Investigadores,Res. 17, 18, 19,1000 a 1400,CUP/mes,Escalón por experiencia
+Antigüedad: 15 a 29 años,Médicos, Docentes, Investigadores,Res. 17, 18, 19,1800 a 2600,CUP/mes,Escalón por experiencia
+Antigüedad: 30+ años,Médicos, Docentes, Investigadores,Res. 17, 18, 19,3000,CUP/mes,Escalón por experiencia (+400 cada 2 años adicionales)
+Nocturnidad Médica (7pm - 7am),Médicos y Estomatólogos en guardia,Res. 17,50,CUP/hora,Tarifa horaria variable
+Nocturnidad Enfermería (7pm - 7am),Personal de Enfermería en turno nocturno,Res. 17,40,CUP/hora,Tarifa horaria variable
+Condiciones Especiales (CLA),Personal expuesto a riesgos / intensidad Grados I a V,Sin especificar,1.20 a 9.00,CUP/hora,Tarifa horaria variable

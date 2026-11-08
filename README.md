@@ -11,35 +11,35 @@ fines exclusivamente académicos.
 ## Objetivo
 
 Analizar si el precio de la vivienda en La Habana es asequible para el cubano
-promedio. Para ello se estudiarán anuncios de venta de casas y apartamentos y,
-cuando los datos disponibles lo permitan, se compararán sus precios con distintos
+promedio. Para ello se estudian anuncios de venta de casas y apartamentos y,
+cuando los datos disponibles lo permiten, se comparan sus precios con distintos
 referentes de ingreso.
 
 El análisis previsto incluye:
 
-- la distribución de precios por municipio y tipo de inmueble;
-- el precio por metro cuadrado;
+- la distribución de precios por tipo de inmueble;
 - las características de las viviendas (área, habitaciones, estado, etc.);
 - la relación entre los precios anunciados y los ingresos disponibles.
 
 Los precios que se analizan son **precios anunciados**, no precios de
 transacción. Esa diferencia se explicará en todos los resultados.
 
-## Fuentes de anuncios (previstas)
+## Fuentes de anuncios
 
 Se han identificado los siguientes portales como posibles fuentes de anuncios:
 
-- Revolico
-- GAOS
-- Mambbu
+- **GAOS** — extracción implementada (`src/sources/gaos.py`).
+- **Revolico** — extracción implementada (`src/sources/revolico.py`).
+- **Mambbu** — fuente candidata; su extracción está **pendiente de autorización** según sus términos de uso (ver `docs/decisiones.md` §8.3 y §10).
+- **CasasOasis** — **excluida** de la extracción automatizada mientras no haya autorización expresa.
 
-Cada portal se transformará a un **esquema de datos común** que permita
+Cada portal se transforma a un **esquema de datos común** que permite
 consolidar y comparar la información (ver `docs/decisiones.md`).
 
-La extracción automatizada todavía no ha comenzado. Antes de ponerla en marcha
-se revisarán las condiciones de uso de cada portal y, cuando corresponda, se
-solicitará autorización. No se intentará eludir mecanismos de protección
-anti automatización.
+La extracción de GAOS y Revolico ya está implementada. Antes de poner en marcha
+Mambbu se revisan las condiciones de uso de cada portal y, cuando corresponda, se
+solicita autorización. No se intenta eludir mecanismos de protección anti
+automatización.
 
 ## Por qué se usan tasas de cambio
 
@@ -113,19 +113,23 @@ lo justifica.
 
 ## Estado actual
 
-El proyecto está **en desarrollo**. Cuenta con el esqueleto del código fuente y
-el sistema de pruebas funcionando.
+El proyecto está **en desarrollo**. Cuenta con el código fuente, el sistema de
+pruebas funcionando y datos capturados de las fuentes implementadas.
 
 | Etapa | Estado |
 |---|---|
 | Estructura del repositorio | Hecha |
 | Esquema de datos común | Documentado e implementado (`src/data/models.py`) |
 | Plan de análisis | Documentado |
-| Diseño del sistema de tasas | Documentado, no implementado |
-| Extracción de anuncios | En desarrollo (GAOS implementado) |
-| Integración con la API de elTOQUE | Implementado (`src/exchange_rates/`) |
+| Diseño del sistema de tasas | Documentado e implementado (`src/exchange_rates/`) |
+| Extracción de anuncios | Implementado para GAOS y Revolico (`src/sources/gaos.py`, `src/sources/revolico.py`) |
+| Extracción de Mambbu | Pendiente (sujeta a autorización; ver `docs/decisiones.md` §8.3 y §10) |
+| CasasOasis | Excluida mientras no haya autorización expresa |
+| Almacenamiento de capturas | Implementado (`src/data/almacenamiento_anuncios.py`) |
+| Unificación de capturas | Implementado (`src/data/unificacion.py`) |
 | Limpieza y consolidación | Implementada (`src/data/normalization.py`, `src/data/mapper.py`) |
-| Análisis y visualizaciones | No iniciados |
+| Análisis y visualizaciones | Análisis exploratorio de precios ejecutado (figuras en `outputs/figuras/`); no es un análisis definitivo de todo el mercado |
+| Salarios | Pendiente de incorporación al proyecto |
 
 ## Estructura del repositorio
 
@@ -136,19 +140,27 @@ el sistema de pruebas funcionando.
 │   ├── especificacion_analisis.md
 │   └── sistema_tasas_cambio.md
 ├── src/                   Código fuente
-│   ├── data/              Modelo, normalización y mapeo de datos
+│   ├── data/              Modelo, normalización, mapeo, almacenamiento y unificación
+│   │   ├── almacenamiento_anuncios.py
+│   │   ├── modelos.py
+│   │   ├── mapper.py
+│   │   ├── normalización.py
+│   │   └── unificacion.py
 │   ├── sources/           Extractores de fuentes inmobiliarias
-│   │   └── revolico.py    (extracción de __NEXT_DATA__, no implementado)
-│   │   └── gaos.py        (extractor de GAOS implementado)
-│   ├── exchange_rates/    Sistema de tasas de cambio (no implementado)
-│   └── analysis/          Análisis y visualizaciones (no implementado)
+│   │   ├── gaos.py        (extracción de GAOS implementada)
+│   │   └── revolico.py    (extracción de Revolico implementada)
+│   ├── exchange_rates/    Sistema de tasas de cambio (implementado)
+│   └── analysis/          Análisis y visualizaciones (no implementado como módulo)
 ├── tests/                 Pruebas del proyecto
+├── outputs/               Resultados locales de análisis (gráficos y tablas de texto)
+├── data/                  Datos locales (no se versionan)
 ├── requirements.txt
 └── README.md
 ```
 
-Las carpetas `data/`, `notebooks/` y `outputs/` se crearán cuando empiece
-la recopilación de datos. Los datos locales no se versionan.
+Las carpetas `data/raw/`, `data/processed/` y `outputs/` contienen datos y
+resultados locales que **no deben publicarse en Git**. Solo se versionan el código
+y la documentación.
 
 ## Requisitos e instalación
 
@@ -175,6 +187,16 @@ El extractor de GAOS (`src/sources/gaos.py`) permite obtener anuncios de
 viviendas en venta de La Habana mediante el Edge Function público de Supabase
 utilizado por el portal. Requiere la `apikey` pública de Supabase (rol `anon`)
 que se configura en el propio módulo.
+
+El extractor de Revolico (`src/sources/revolico.py`) permite obtener anuncios
+de viviendas en venta de La Habana desde el portal de Revolico. No recopila
+datos personales de vendedores (nombres, teléfonos, WhatsApp).
+
+El módulo de almacenamiento (`src/data/almacenamiento_anuncios.py`) guarda
+capturas crudas y procesadas por fuente, con metadatos de `fuente` y
+`url_fuente`. La función de unificación (`src/data/unificacion.py`) combina
+capturas de GAOS y Revolico en un único archivo JSON, manteniendo la
+procedencia de cada anuncio mediante el campo `fuente` en cada registro.
 
 ## Automatización de tasas de cambio (GitHub Actions)
 
@@ -215,9 +237,10 @@ locales no se suben a GitHub.
 
 - [`docs/decisiones.md`](docs/decisiones.md): esquema de datos común, políticas y
   decisiones del proyecto, incluidas las pruebas de acceso a Revolico, GAOS y
-  Mambbu.
+  Mambbu, y el diseño del almacenamiento y unificación de capturas.
 - [`docs/especificacion_analisis.md`](docs/especificacion_analisis.md): plan de
-  análisis, variables, cálculos y limitaciones.
+  análisis, variables, cálculos y limitaciones, incluido el análisis exploratorio
+  de precios de GAOS y Revolico.
 - [`docs/sistema_tasas_cambio.md`](docs/sistema_tasas_cambio.md): diseño del
   registro de tasas de cambio.
 
@@ -232,19 +255,3 @@ locales no se suben a GitHub.
 - Revolico y GAOS presentan restricciones de acceso (HTTP 403 y 429
   respectivamente desde `requests`). Mambbu prohíbe la extracción automatizada
   en sus términos de uso. Consulte `docs/decisiones.md` §8 y §10 para detalles.
-
-## Documentación
-
-- [`docs/decisiones.md`](docs/decisiones.md): esquema de datos común, políticas y
-  decisiones del proyecto.
-- [`docs/especificacion_analisis.md`](docs/especificacion_analisis.md): plan de
-  análisis, variables, cálculos y limitaciones.
-- [`docs/sistema_tasas_cambio.md`](docs/sistema_tasas_cambio.md): diseño del
-  registro de tasas de cambio.
-
-## Alcance y limitaciones
-
-- Los anuncios no representan todas las transacciones ni todo el mercado.
-- Los resultados dependerán de la cobertura real de los datos y se reportará el
-  tamaño de muestra de cada cálculo.
-- Las conclusiones serán descriptivas; no se afirmarán relaciones causales.

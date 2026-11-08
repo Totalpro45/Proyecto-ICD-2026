@@ -1,35 +1,28 @@
-# Entornos virtuales
-.venv/
-venv/
-env/
-
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-build/
-dist/
-
-# Jupyter
-.ipynb_checkpoints/
-
-# Datos generados (no versionar)
+# Datos locales (no se versionan)
 data/raw/
-!data/raw/
-!data/raw/exchange_rates/
-!data/raw/exchange_rates/historial_tasas.json
-data/raw/exchange_rates/historial_tasas.json.bak
 data/processed/
+
+# Resultados locales de análisis
 outputs/
 
-# Secretos y configuración local
+# Entornos virtuales
+.venv/
+
+# Variables de entorno y credenciales
 .env
 
-# Sistema operativo / editores
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
+# Archivos de Python compilados
+__pycache__/
+*.pyc
 
-# Logs
-*.log
+# Caché de pruebas
+.pytest_cache/
+
+# Archivos temporales
+*.tmp
+
+# Archivos de respaldo
+*.bak
+
+# Archivo de depuración temporal
+tests/debug_aserecuba.py

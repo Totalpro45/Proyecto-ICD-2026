@@ -11,10 +11,18 @@ No recopila datos personales de vendedores (nombres, teléfonos, WhatsApp).
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import requests
 
+from data.almacenamiento_anuncios import (
+    RUTA_CRUDO_DEFECTO,
+    RUTA_PROCESADO_DEFECTO,
+    guardar_captura_completa,
+    leer_captura,
+    listar_capturas,
+)
 from data.models import AnuncioInmobiliario
 from data.normalization import (
     normalizar_amueblado,
@@ -278,3 +286,202 @@ def extraer_anuncios(
     """
     crudos = extraer_listings(limite_paginas=limite_paginas)
     return [mapear_anuncio(d) for d in crudos]
+
+
+def capturar_y_guardar(
+    limite_paginas: Optional[int] = None,
+    ruta_crudo: Path | None = None,
+    ruta_procesado: Path | None = None,
+) -> str | None:
+    """Captura anuncios de GAOS una sola vez y los guarda crudos y procesados.
+
+    El flujo es:
+    1. Consultar GAOS una sola vez (``extraer_listings``).
+    2. Si la extracción falla o no devuelve datos, informar y no guardar nada.
+    3. Pasar los datos crudos a ``guardar_captura_completa``, que los mapea
+       internamente y guarda ambos archivos con el mismo id_captura.
+    4. Informar cuántos anuncios se obtuvieron y dónde se guardó la captura.
+
+    Args:
+        limite_paginas: Número máximo de páginas a consultar en GAOS.
+        ruta_crudo: carpeta destino para los crudos (opcional).
+        ruta_procesado: carpeta destino para los procesados (opcional).
+
+    Returns:
+        El id_captura de la captura guardada, o None si no se guardó nada.
+    """
+    try:
+        crudos = extraer_listings(limite_paginas=limite_paginas)
+    except Exception as exc:  # noqa: BLE001
+        print(
+            "Error al consultar GAOS durante la captura: "
+            f"{exc.__class__.__name__}: {exc}. "
+            "No se guardó ninguna captura."
+        )
+        return None
+
+    if not crudos:
+        print(
+            "No se obtuvieron anuncios de GAOS (extracción vacía o fallida). "
+            "No se guardó ninguna captura."
+        )
+        return None
+
+    id_captura = guardar_captura_completa(crudos, ruta_crudo, ruta_procesado)
+
+    if id_captura is None:
+        print(
+            f"Se obtuvieron {len(crudos)} anuncios de GAOS, pero los datos no "
+            f"son válidos (precio no interpretable). No se guardó ninguna captura."
+        )
+        return None
+
+    print(f"Se obtuvieron {len(crudos)} anuncios de GAOS.")
+    print(f"Captura guardada con id {id_captura}.")
+    print(f"  Crudos:   {ruta_crudo or RUTA_CRUDO_DEFECTO}")
+    print(f"  Procesado:{ruta_procesado or RUTA_PROCESADO_DEFECTO}")
+    return id_captura
+
+
+def ampliar_captura_controlada(
+    limite_paginas: int = 5,
+    ruta_crudo: Path | None = None,
+    ruta_procesado: Path | None = None,
+) -> dict | None:
+    """Consulta hasta ``limite_paginas`` páginas de GAOS, compara los anuncios
+    con capturas previas y guarda el lote completo recibido.
+
+    El lote completo se guarda sin filtrar ni eliminar anuncios, incluidos
+    los repetidos y los que carecen de ``ulistingid``. Cada ejecución genera
+    un ``id_captura`` nuevo, por lo que las capturas previas nunca se
+    sobrescriben.
+
+    Args:
+        limite_paginas: Número máximo de páginas a consultar (máx. 100
+            anuncios con el límite por página de 20).
+        ruta_crudo: carpeta destino para los crudos (opcional).
+        ruta_procesado: carpeta destino para los procesados (opcional).
+
+    Returns:
+        Diccionario con las claves:
+            - consultados: total de anuncios obtenidos de GAOS.
+            - nuevos: anuncios cuyo ``ulistingid`` no aparece en capturas
+              previas ni en el lote actual.
+            - repetidos_previos: anuncios cuyo ``ulistingid`` ya existía en
+              una captura previa.
+            - duplicados_internos: anuncios cuyo ``ulistingid`` se repite
+              dentro del lote actual.
+            - sin_id: anuncios que no tienen ``ulistingid``.
+            - id_captura: id de la captura guardada, o None si no se guardó.
+        o None si ocurrió un error durante la extracción o la lectura de
+        capturas previas.
+
+    Raises:
+        No lanza excepciones; los errores se informan por consola y se
+        devuelve None.
+    """
+    # 1. Recolectar ulistingid de capturas previas
+    ids_previos: set[str] = set()
+    try:
+        capturas = listar_capturas(ruta_crudo=ruta_crudo, ruta_procesado=ruta_procesado)
+        for captura in capturas:
+            if not captura.get("tiene_crudo"):
+                continue
+            lectura = leer_captura(
+                captura["id_captura"],
+                ruta_crudo=ruta_crudo,
+                ruta_procesado=ruta_procesado,
+            )
+            if lectura is None or "crudo" not in lectura:
+                continue
+            for anuncio in lectura["crudo"]["datos"]:
+                id_fuente = anuncio.get("ulistingid")
+                if id_fuente:
+                    ids_previos.add(id_fuente)
+    except Exception as exc:  # noqa: BLE001
+        print(
+            "Error al leer capturas previas: "
+            f"{exc.__class__.__name__}: {exc}. "
+            "No se guardó ninguna captura."
+        )
+        return None
+
+    # 2. Consultar GAOS (máximo una extracción)
+    try:
+        crudos = extraer_listings(limite_paginas=limite_paginas)
+    except Exception as exc:  # noqa: BLE001
+        print(
+            "Error al consultar GAOS: "
+            f"{exc.__class__.__name__}: {exc}. "
+            "No se guardó ninguna captura."
+        )
+        return None
+
+    if not crudos:
+        print("No se obtuvieron anuncios de GAOS. No se guardó ninguna captura.")
+        return None
+
+    # 3. Clasificar los anuncios del lote
+    ids_en_lote: set[str] = set()
+    nuevos: list[dict] = []
+    repetidos_previos: list[dict] = []
+    duplicados_internos: list[dict] = []
+    sin_id: list[dict] = []
+
+    for anuncio in crudos:
+        id_fuente = anuncio.get("ulistingid")
+
+        if not id_fuente:
+            sin_id.append(anuncio)
+            continue
+
+        if id_fuente in ids_en_lote:
+            duplicados_internos.append(anuncio)
+            continue
+
+        ids_en_lote.add(id_fuente)
+
+        if id_fuente in ids_previos:
+            repetidos_previos.append(anuncio)
+        else:
+            nuevos.append(anuncio)
+
+    # 4. Guardar el lote COMPLETO (sin filtrar ni eliminar anuncios)
+    try:
+        id_captura = guardar_captura_completa(
+            crudos, ruta_crudo=ruta_crudo, ruta_procesado=ruta_procesado
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(
+            "Error al guardar la captura: "
+            f"{exc.__class__.__name__}: {exc}. "
+            "No se guardó ninguna captura."
+        )
+        return None
+
+    if id_captura is None:
+        print(
+            "No se pudo guardar el lote completo (datos no válidos, por ejemplo "
+            "precio no interpretable). No se guardó ninguna captura."
+        )
+        return None
+
+    print(f"Anuncios consultados: {len(crudos)}")
+    print(f"Nuevos: {len(nuevos)}")
+    print(f"Repetidos contra capturas previas: {len(repetidos_previos)}")
+    print(f"Duplicados dentro del lote: {len(duplicados_internos)}")
+    print(f"Sin id_fuente: {len(sin_id)}")
+    print(f"Captura guardada con id {id_captura}.")
+
+    return {
+        "consultados": len(crudos),
+        "nuevos": len(nuevos),
+        "repetidos_previos": len(repetidos_previos),
+        "duplicados_internos": len(duplicados_internos),
+        "sin_id": len(sin_id),
+        "id_captura": id_captura,
+    }
+
+
+if __name__ == "__main__":
+    capturar_y_guardar()
