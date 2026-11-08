@@ -1,6 +1,6 @@
 {
   "version_esquema": "1.0",
-  "ultima_actualizacion": "2026-11-05T20:25:14.779868+00:00",
+  "ultima_actualizacion": "2026-11-08T14:48:57.192926+00:00",
   "cotizaciones": [
     {
       "id": "300291b6-e795-4040-8f7b-61251d4f1de9",
@@ -77,6 +77,158 @@
       "estado": "valida",
       "motivo_sospecha": null,
       "reemplaza_a": null
+    },
+    {
+      "id": "e2d9b057-4cfb-492b-95ff-2d92430a5447",
+      "id_actualizacion": "557e851d-56da-4461-a439-bd462e0db8d9",
+      "fuente": null,
+      "categoria": null,
+      "tipo_tasa": "no_especificado",
+      "segmento": null,
+      "moneda_origen": "MLC",
+      "moneda_destino": "CUP",
+      "valor": 706.87,
+      "valor_texto_original": "706.87",
+      "fecha_publicacion": "2026-11-06T10:15:58",
+      "fecha_vigencia": null,
+      "fecha_captura": "2026-11-06T15:09:37.187446+00:00",
+      "url_fuente": null,
+      "estado": "valida",
+      "motivo_sospecha": null,
+      "reemplaza_a": null
+    },
+    {
+      "id": "8fb017aa-1b0f-4f3f-8bf9-36417b722fa6",
+      "id_actualizacion": "557e851d-56da-4461-a439-bd462e0db8d9",
+      "fuente": null,
+      "categoria": null,
+      "tipo_tasa": "no_especificado",
+      "segmento": null,
+      "moneda_origen": "USD",
+      "moneda_destino": "CUP",
+      "valor": 930.0,
+      "valor_texto_original": "930.0",
+      "fecha_publicacion": "2026-11-06T10:15:58",
+      "fecha_vigencia": null,
+      "fecha_captura": "2026-11-06T15:09:37.187476+00:00",
+      "url_fuente": null,
+      "estado": "valida",
+      "motivo_sospecha": null,
+      "reemplaza_a": null
+    },
+    {
+      "id": "810f5db4-533b-40eb-a7b0-3198c820b307",
+      "id_actualizacion": "29463b08-6ada-41b6-9bbe-5efc2053c9ae",
+      "fuente": null,
+      "categoria": null,
+      "tipo_tasa": "no_especificado",
+      "segmento": null,
+      "moneda_origen": "MLC",
+      "moneda_destino": "CUP",
+      "valor": 695.62,
+      "valor_texto_original": "695.62",
+      "fecha_publicacion": "2026-11-06T10:48:58",
+      "fecha_vigencia": null,
+      "fecha_captura": "2026-11-06T15:42:37.397002+00:00",
+      "url_fuente": null,
+      "estado": "valida",
+      "motivo_sospecha": null,
+      "reemplaza_a": null
+    },
+    {
+      "id": "dcabb9e7-e804-48c7-907c-b664517c4cd5",
+      "id_actualizacion": "29463b08-6ada-41b6-9bbe-5efc2053c9ae",
+      "fuente": null,
+      "categoria": null,
+      "tipo_tasa": "no_especificado",
+      "segmento": null,
+      "moneda_origen": "USD",
+      "moneda_destino": "CUP",
+      "valor": 930.0,
+      "valor_texto_original": "930.0",
+      "fecha_publicacion": "2026-11-06T10:48:58",
+      "fecha_vigencia": null,
+      "fecha_captura": "2026-11-06T15:42:37.397031+00:00",
+      "url_fuente": null,
+      "estado": "valida",
+      "motivo_sospecha": null,
+      "reemplaza_a": null
+    },
+    {
+      "id": "239a639f-7051-42ed-b97c-bd60dc50b878",
+      "id_actualizacion": "96796e02-e42a-4e30-a2b7-96428206fb53",
+      "fuente": null,
+      "categoria": null,
+      "tipo_tasa": "no_especificado",
+      "segmento": null,
+      "moneda_origen": "MLC",
+      "moneda_destino": "CUP",
+      "valor": 692.18,
+      "valor_texto_original": "692.18",
+      "fecha_publicacion": "2026-11-07T09:50:02",
+      "fecha_vigencia": null,
+      "fecha_captura": "2026-11-07T14:43:38.245570+00:00",
+      "url_fuente": null,
+      "estado": "valida",
+      "motivo_sospecha": null,
+      "reemplaza_a": null
+    },
+    {
+      "id": "98bf52e8-9960-49d8-8912-1da8f9981dfd",
+      "id_actualizacion": "96796e02-e42a-4e30-a2b7-96428206fb53",
+      "fuente": null,
+      "categoria": null,
+      "tipo_tasa": "no_especificado",
+      "segmento": null,
+      "moneda_origen": "USD",
+      "moneda_destino": "CUP",
+      "valor": 930.0,
+      "valor_texto_original": "930.0",
+      "fecha_publicacion": "2026-11-07T09:50:02",
+      "fecha_vigencia": null,
+      "fecha_captura": "2026-11-07T14:43:38.245597+00:00",
+      "url_fuente": null,
+      "estado": "valida",
+      "motivo_sospecha": null,
+      "reemplaza_a": null
+    },
+    {
+      "id": "805ae3dc-4c7a-421f-9f10-af0601336754",
+      "id_actualizacion": "809536e2-5f70-446e-a6f4-9e49421f7db4",
+      "fuente": null,
+      "categoria": null,
+      "tipo_tasa": "no_especificado",
+      "segmento": null,
+      "moneda_origen": "MLC",
+      "moneda_destino": "CUP",
+      "valor": 769.84,
+      "valor_texto_original": "769.84",
+      "fecha_publicacion": "2026-11-08T09:48:56",
+      "fecha_vigencia": null,
+      "fecha_captura": "2026-11-08T14:48:57.192049+00:00",
+      "url_fuente": null,
+      "estado": "valida",
+      "motivo_sospecha": null,
+      "reemplaza_a": null
+    },
+    {
+      "id": "9f9a6bbb-38ca-4117-87b5-0cab7737783b",
+      "id_actualizacion": "809536e2-5f70-446e-a6f4-9e49421f7db4",
+      "fuente": null,
+      "categoria": null,
+      "tipo_tasa": "no_especificado",
+      "segmento": null,
+      "moneda_origen": "USD",
+      "moneda_destino": "CUP",
+      "valor": 930.0,
+      "valor_texto_original": "930.0",
+      "fecha_publicacion": "2026-11-08T09:48:56",
+      "fecha_vigencia": null,
+      "fecha_captura": "2026-11-08T14:48:57.192077+00:00",
+      "url_fuente": null,
+      "estado": "valida",
+      "motivo_sospecha": null,
+      "reemplaza_a": null
     }
   ],
   "actualizaciones": [
@@ -100,6 +252,70 @@
       "id": "95176ba6-34a1-499e-9080-e81595db2eef",
       "fecha_inicio": "2026-11-05T20:25:10.267790+00:00",
       "fecha_fin": "2026-11-05T20:25:14.779868+00:00",
+      "fuentes_consultadas": [
+        "eltoque"
+      ],
+      "resultado_por_fuente": [
+        {
+          "fuente": "eltoque",
+          "estado": "ok",
+          "cotizaciones_nuevas": 2,
+          "incidencias": 0
+        }
+      ]
+    },
+    {
+      "id": "557e851d-56da-4461-a439-bd462e0db8d9",
+      "fecha_inicio": "2026-11-06T15:09:36.091005+00:00",
+      "fecha_fin": "2026-11-06T15:09:37.188805+00:00",
+      "fuentes_consultadas": [
+        "eltoque"
+      ],
+      "resultado_por_fuente": [
+        {
+          "fuente": "eltoque",
+          "estado": "ok",
+          "cotizaciones_nuevas": 2,
+          "incidencias": 0
+        }
+      ]
+    },
+    {
+      "id": "29463b08-6ada-41b6-9bbe-5efc2053c9ae",
+      "fecha_inicio": "2026-11-06T15:42:36.485554+00:00",
+      "fecha_fin": "2026-11-06T15:42:37.409552+00:00",
+      "fuentes_consultadas": [
+        "eltoque"
+      ],
+      "resultado_por_fuente": [
+        {
+          "fuente": "eltoque",
+          "estado": "ok",
+          "cotizaciones_nuevas": 2,
+          "incidencias": 0
+        }
+      ]
+    },
+    {
+      "id": "96796e02-e42a-4e30-a2b7-96428206fb53",
+      "fecha_inicio": "2026-11-07T14:43:37.347394+00:00",
+      "fecha_fin": "2026-11-07T14:43:38.246415+00:00",
+      "fuentes_consultadas": [
+        "eltoque"
+      ],
+      "resultado_por_fuente": [
+        {
+          "fuente": "eltoque",
+          "estado": "ok",
+          "cotizaciones_nuevas": 2,
+          "incidencias": 0
+        }
+      ]
+    },
+    {
+      "id": "809536e2-5f70-446e-a6f4-9e49421f7db4",
+      "fecha_inicio": "2026-11-08T14:48:56.280487+00:00",
+      "fecha_fin": "2026-11-08T14:48:57.192926+00:00",
       "fuentes_consultadas": [
         "eltoque"
       ],
