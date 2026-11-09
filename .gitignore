@@ -1,5 +1,8 @@
 # Datos locales (no se versionan)
-data/raw/
+data/raw/*
+!data/raw/exchange_rates/
+data/raw/exchange_rates/*
+!data/raw/exchange_rates/historial_tasas.json
 data/processed/
 
 # Resultados locales de análisis

@@ -39,6 +39,8 @@ jobs:
           ELTOQUE_API_TOKEN: ${{ secrets.ELTOQUE_API_TOKEN }}
         run: |
           python -m src.exchange_rates.capturar
+          mkdir -p "$RUNNER_TEMP"
+          cp data/raw/exchange_rates/historial_tasas.json "$RUNNER_TEMP/historial_tasas.json"
 
       - name: Verificar si hay cambios para commitear
         id: git-status
@@ -56,8 +58,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/raw/exchange_rates/historial_tasas.json
           git commit -m "feat(tasas): agregar cotización diaria de elTOQUE"
-          mkdir -p "$RUNNER_TEMP"
-          cp data/raw/exchange_rates/historial_tasas.json "$RUNNER_TEMP/historial_tasas.json"
           git fetch origin main:refs/remotes/origin/main
           if [ -n "$(git status --porcelain)" ]; then
             echo "::error::El directorio de trabajo no está limpio antes del rebase."
