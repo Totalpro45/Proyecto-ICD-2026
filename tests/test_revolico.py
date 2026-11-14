@@ -594,6 +594,118 @@ def test_clasificar_tipo_inmueble_none_y_vacio():
     assert _clasificar_tipo_inmueble("   ") == "indeterminado"
 
 
+def test_mapear_anuncio_revolico_municipio_desde_titulo():
+    """Si el título menciona un municipio de La Habana sin ambigüedades, se identifica."""
+    dato = {
+        "id_fuente": "58397137",
+        "url": "https://www.revolico.com/item/test-58397137?p",
+        "precio": 25000,
+        "moneda": "USD",
+        "titulo": "Casa en zona de Playa | 37 y 42",
+        "descripcion": None,
+    }
+    anuncio = mapear_anuncio_revolico(dato, "2026-11-07T12:00:00Z")
+    assert anuncio.municipio == "Playa"
+
+
+def test_mapear_anuncio_revolico_municipio_playa_ambigua_sin_contexto_devuelve_none():
+    """'Oportunidad en la playa | 37 y 42' es ambigua: no asigna municipio."""
+    dato = {
+        "id_fuente": "58397137",
+        "url": "https://www.revolico.com/item/oportunidad-en-playa-37-y-42-58397137?p",
+        "precio": 25000,
+        "moneda": "USD",
+        "titulo": "Oportunidad en Playa | 37 y 42",
+        "descripcion": None,
+    }
+    anuncio = mapear_anuncio_revolico(dato, "2026-11-07T12:00:00Z")
+    assert anuncio.municipio is None
+
+
+def test_mapear_anuncio_revolico_municipio_none_para_barrio():
+    """Barrios como Vedado o Miramar no se confunden con municipios."""
+    dato = {
+        "id_fuente": "58169727",
+        "url": "https://www.revolico.com/item/test-58169727?p",
+        "precio": 99000,
+        "moneda": "USD",
+        "titulo": "Vendo Propiedad Horizontal en el Vedado",
+        "descripcion": None,
+    }
+    anuncio = mapear_anuncio_revolico(dato, "2026-11-07T12:00:00Z")
+    assert anuncio.municipio is None
+
+
+def test_mapear_anuncio_revolico_municipio_playa_geografica_devuelve_none():
+    """Referencia a playa geográfica no asigna municipio Playa."""
+    dato = {
+        "id_fuente": "57851228",
+        "url": "https://www.revolico.com/item/test-57851228",
+        "precio": 120000,
+        "moneda": "USD",
+        "titulo": "GG-180 cercanía a la playa y tranquilidad en brisas del mar, guanabo",
+        "descripcion": None,
+    }
+    anuncio = mapear_anuncio_revolico(dato, "2026-11-07T12:00:00Z")
+    assert anuncio.municipio is None
+
+
+def test_mapear_anuncio_revolico_municipio_playa_de_devuelve_none():
+    """'playa de Bacuranao' es referencia a playa, no al municipio."""
+    dato = {
+        "id_fuente": "58680047",
+        "url": "https://www.revolico.com/item/test-58680047",
+        "precio": 40000,
+        "moneda": "USD",
+        "titulo": "Se vende casa en Celimar(playa de Bacuranao)",
+        "descripcion": None,
+    }
+    anuncio = mapear_anuncio_revolico(dato, "2026-11-07T12:00:00Z")
+    assert anuncio.municipio is None
+
+
+def test_mapear_anuncio_revolico_municipio_playa_ambigua_devuelve_none():
+    """'Venta de casas en la playa' no asigna municipio."""
+    dato = {
+        "id_fuente": "57162643",
+        "url": "https://www.revolico.com/item/test-57162643",
+        "precio": 12000,
+        "moneda": "USD",
+        "titulo": "Venta de casas en playa",
+        "descripcion": None,
+    }
+    anuncio = mapear_anuncio_revolico(dato, "2026-11-07T12:00:00Z")
+    assert anuncio.municipio is None
+
+
+def test_mapear_anuncio_revolico_municipio_venta_en_playa_devuelve_none():
+    """'VENTA EN LA PLAYA' sin contexto no asigna municipio."""
+    dato = {
+        "id_fuente": "58679654",
+        "url": "https://www.revolico.com/item/test-58679654",
+        "precio": 200,
+        "moneda": "USD",
+        "titulo": "VENTA EN PLAYA",
+        "descripcion": None,
+    }
+    anuncio = mapear_anuncio_revolico(dato, "2026-11-07T12:00:00Z")
+    assert anuncio.municipio is None
+
+
+def test_mapear_anuncio_revolico_municipio_cerro_compuesto_devuelve_none():
+    """'cerro-plaza' es expresión compuesta, no asigna Cerro."""
+    dato = {
+        "id_fuente": "58679794",
+        "url": "https://www.revolico.com/item/test-58679794",
+        "precio": 90000,
+        "moneda": "USD",
+        "titulo": "Hermosa casa en el Cerro-plaza",
+        "descripcion": None,
+    }
+    anuncio = mapear_anuncio_revolico(dato, "2026-11-07T12:00:00Z")
+    assert anuncio.municipio is None
+
+
 def test_mapear_anuncio_revolico_tipo_inmueble_casa():
     """mapear_anuncio_revolico asigna tipo_inmueble='casa' cuando el título lo indica."""
     dato = {

@@ -135,10 +135,58 @@ def test_mapear_anuncio_precio_y_moneda():
 
 
 def test_mapear_anuncio_direccion_y_municipio():
-    """Dirección se extrae del anuncio; municipio queda None (GAOS no lo provee)."""
+    """Dirección se extrae del anuncio; municipio queda None cuando no se reconoce."""
     anuncio = mapear_anuncio(ANUNCIO_EJEMPLO_APARTAMENTO)
     assert anuncio.direccion_texto == "Calle 23, Vedado"
     assert anuncio.municipio is None
+
+
+def test_mapear_anuncio_municipio_desde_titulo():
+    """Si el título menciona un municipio de La Habana, se identifica."""
+    dato = dict(ANUNCIO_EJEMPLO_APARTAMENTO)
+    dato["vctitle"] = "Apartamento en venta en zona de Playa"
+    anuncio = mapear_anuncio(dato)
+    assert anuncio.municipio == "Playa"
+
+
+def test_mapear_anuncio_municipio_desde_direccion():
+    """Si la dirección menciona un municipio de La Habana, se identifica."""
+    dato = dict(ANUNCIO_EJEMPLO_APARTAMENTO)
+    dato["vcaddress"] = "Calle 23, Vedado, Plaza de la Revolución"
+    anuncio = mapear_anuncio(dato)
+    assert anuncio.municipio == "Plaza de la Revolución"
+
+
+def test_mapear_anuncio_municipio_titulo_y_direccion_coinciden():
+    """Título y dirección indican el mismo municipio: se usa ese municipio."""
+    dato = dict(ANUNCIO_EJEMPLO_APARTAMENTO)
+    dato["vctitle"] = "Casa en venta en Playa"
+    dato["vcaddress"] = "Playa, La Habana"
+    anuncio = mapear_anuncio(dato)
+    assert anuncio.municipio == "Playa"
+    assert anuncio.notas_calidad is None
+
+
+def test_mapear_anuncio_municipio_contradiccion_titulo_direccion():
+    """Título y dirección indican municipios diferentes: municipio None y
+    nota de calidad registrando la contradicción."""
+    dato = dict(ANUNCIO_EJEMPLO_APARTAMENTO)
+    dato["vctitle"] = "Casa en venta en Centro Habana"
+    dato["vcaddress"] = "Playa, La Habana"
+    anuncio = mapear_anuncio(dato)
+    assert anuncio.municipio is None
+    assert anuncio.notas_calidad is not None
+    assert "Contradicción" in anuncio.notas_calidad
+
+
+def test_mapear_anuncio_municipio_solo_titulo():
+    """Solo el título identifica municipio; la dirección no aporta nada."""
+    dato = dict(ANUNCIO_EJEMPLO_APARTAMENTO)
+    dato["vctitle"] = "Casa en Marianao"
+    dato["vcaddress"] = "Calle 23"
+    anuncio = mapear_anuncio(dato)
+    assert anuncio.municipio == "Marianao"
+    assert anuncio.notas_calidad is None
 
 
 def test_mapear_anuncio_area_habitaciones_banos():

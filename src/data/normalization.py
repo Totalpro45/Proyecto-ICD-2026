@@ -4,6 +4,9 @@ Por ahora incluye la normalización de monedas, tipos de inmueble y tipos de
 operación, tal como se define en `docs/decisiones.md`.
 """
 
+import re
+import unicodedata
+
 # Monedas admitidas por el esquema común, en su forma canónica.
 MONEDAS_ADMITIDAS = {"USD", "MLC", "CUP", "EUR", "OTRA"}
 
@@ -260,9 +263,6 @@ def normalizar_fecha(valor):
     return None
 
 
-import re
-
-
 def normalizar_precio(valor):
     """Extrae el importe numérico y la moneda normalizada de un valor de entrada.
 
@@ -346,3 +346,199 @@ def normalizar_precio(valor):
         return None, None
 
     return importe, moneda
+
+
+# --- Municipios de La Habana ---
+
+# Lista canónica de los 15 municipios de La Habana.
+# Las claves están normalizadas (sin tildes, minúsculas) para facilitar la
+# búsqueda en texto libre. Los valores son los nombres canónicos con tildes.
+MUNICIPIOS_LA_HABANA = {
+    "playa": "Playa",
+    "plaza de la revolucion": "Plaza de la Revolución",
+    "centro habana": "Centro Habana",
+    "habana vieja": "Habana Vieja",
+    "regla": "Regla",
+    "la habana del este": "La Habana del Este",
+    "guanabacoa": "Guanabacoa",
+    "san miguel del padron": "San Miguel del Padrón",
+    "diez de octubre": "Diez de Octubre",
+    "cerro": "Cerro",
+    "marianao": "Marianao",
+    "la lisa": "La Lisa",
+    "boyeros": "Boyeros",
+    "arroyo naranjo": "Arroyo Naranjo",
+    "cotorro": "Cotorro",
+}
+
+
+def _quitar_tildes(texto):
+    """Devuelve el texto en minúsculas sin tildes ni otros diacríticos."""
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', texto)
+        if unicodedata.category(c) != 'Mn'
+    ).lower()
+
+
+def identificar_municipio_en_texto(texto):
+    """Busca un municipio de La Habana en un texto libre.
+
+    Realiza una búsqueda de palabra completa (límite de palabra \b), sin
+    distinción de mayúsculas ni tildes, tanto en el texto de entrada como en
+    las claves del diccionario de municipios.
+
+    Devuelve el nombre canónico del municipio si hay exactamente una
+    coincidencia clara. Devuelve None si no hay coincidencia o si la
+    coincidencia es ambigua (más de una).
+    """
+    if texto is None:
+        return None
+
+    if not isinstance(texto, str):
+        return None
+
+    if not texto.strip():
+        return None
+
+    texto_limpio = _quitar_tildes(texto)
+    coincidencias = []
+
+    for clave_normalizada, nombre_canonico in MUNICIPIOS_LA_HABANA.items():
+        patron = r'\b' + re.escape(clave_normalizada) + r'\b'
+        if re.search(patron, texto_limpio):
+            coincidencias.append(nombre_canonico)
+
+    if len(coincidencias) == 1:
+        return coincidencias[0]
+
+    return None
+
+
+def _es_referencia_playa_geografica(texto):
+    """Detecta si la palabra 'playa' en el texto se refiere a una playa
+    geográfica, no al municipio Playa.
+
+    Reconoce patrones como 'cerca de la playa', 'playa de', 'a la playa',
+    'en playa', que indican una referencia geográfica y no administrativa.
+    """
+    if texto is None:
+        return False
+
+    if not isinstance(texto, str):
+        return False
+
+    texto_limpio = _quitar_tildes(texto)
+    patrones = [
+        r'\bcerca de la playa\b',
+        r'\bcerca de playa\b',
+        r'\bplaya de\b',
+        r'\ba la playa\b',
+        r'\ben la playa\b',
+        r'\ben playa\b(?=\s*$|\s*[.,;|\-])',
+        r'\bde la playa\b',
+        r'\bplaya geográfica\b',
+        r'\bplaya geografica\b',
+    ]
+
+    for patron in patrones:
+        if re.search(patron, texto_limpio):
+            return True
+
+    return False
+
+
+def _es_municipio_compuesto(municipio, texto):
+    """Detecta si el municipio aparece como parte de una expresión compuesta
+    (por ejemplo, 'cerro-plaza') en lugar de como palabra aislada.
+
+    En esos casos la identificación es ambigua y no debe usarse.
+    """
+    if municipio is None or texto is None:
+        return False
+
+    texto_limpio = _quitar_tildes(texto)
+    municipio_limpio = municipio.lower()
+
+    # Si el municipio va seguido inmediatamente de un carácter que no es
+    # letra ni espacio (por ejemplo, guion), forma parte de una compuesta.
+    patron = r'\b' + re.escape(municipio_limpio) + r'[^\w\s]'
+    if re.search(patron, texto_limpio):
+        return True
+
+    return False
+
+
+def identificar_municipio_en_titulo_revolico(titulo):
+    """Identifica el municipio en un título de Revolico.
+
+    Aplica las mismas reglas de búsqueda que ``identificar_municipio_en_texto``
+    pero añade filtros para evitar falsos positivos:
+
+    - No asigna 'Playa' cuando la referencia es claramente a una playa
+      geográfica (no al municipio).
+    - No asigna un municipio cuando aparece como parte de una expresión
+      compuesta (por ejemplo, 'cerro-plaza').
+
+    Devuelve el nombre canónico del municipio o None si no hay suficiente
+    evidencia.
+    """
+    if titulo is None:
+        return None
+
+    municipio = identificar_municipio_en_texto(titulo)
+
+    if municipio is None:
+        return None
+
+    # Filtrar referencias a playa geográfica
+    if municipio == 'Playa' and _es_referencia_playa_geografica(titulo):
+        return None
+
+    # Filtrar municipios en expresión compuesta
+    if _es_municipio_compuesto(municipio, titulo):
+        return None
+
+    return municipio
+
+
+def identificar_municipio_gaos(titulo, direccion):
+    """Identifica el municipio de un anuncio de GAOS a partir de título y
+    dirección analizados por separado.
+
+    Reglas:
+    - Si título y dirección identifican municipios diferentes, devuelve None
+      y se debe registrar la contradicción en notas_calidad.
+    - Si solo uno de los dos aporta una identificación clara, se usa ese
+      municipio.
+    - Si el título identifica 'Playa' pero es una referencia a playa
+      geográfica (no al municipio), ese municipio del título se descarta.
+    - Si ninguno aporta identificación, devuelve None.
+
+    Devuelve una tupla (municipio, contradiccion) donde contradiccion es True
+    si se detectó un conflicto entre título y dirección.
+    """
+    municipio_titulo_raw = identificar_municipio_en_texto(titulo) if titulo else None
+    municipio_direccion = identificar_municipio_en_texto(direccion) if direccion else None
+
+    # Si el título identifica 'Playa' pero es una referencia a playa
+    # geográfica, descartar ese municipio del título.
+    municipio_titulo = municipio_titulo_raw
+    if (
+        municipio_titulo == 'Playa'
+        and titulo is not None
+        and _es_referencia_playa_geografica(titulo)
+    ):
+        municipio_titulo = None
+
+    if municipio_titulo is not None and municipio_direccion is not None:
+        if municipio_titulo != municipio_direccion:
+            return None, True  # Contradicción
+        return municipio_titulo, False  # Ambos coinciden
+
+    if municipio_titulo is not None:
+        return municipio_titulo, False
+
+    if municipio_direccion is not None:
+        return municipio_direccion, False
+
+    return None, False

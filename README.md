@@ -41,7 +41,7 @@ Mambbu se revisan las condiciones de uso de cada portal y, cuando corresponda, s
 solicita autorización. No se intenta eludir mecanismos de protección anti
 automatización.
 
-## Por qué se usan tasas de cambio
+## Tasas de cambio
 
 Los anuncios inmobiliarios cubanos se publican en distintas monedas (CUP, USD,
 MLC y EUR). Para compararlos y agregarlos hace falta una referencia común.
@@ -54,37 +54,13 @@ En Cuba coexisten dos referencias cambiarias que **no son equivalentes**:
 El proyecto las conserva por separado, cada una con su procedencia y su fecha.
 No se mezclan, no se promedian y no se presentan como si fueran la misma cosa.
 
-La conversión de los precios a una moneda común dependerá de la disponibilidad
-de tasas documentadas y justificables para la fecha correspondiente. Cuando no
-exista una referencia adecuada, los anuncios se analizarán por separado según
-su moneda original.
+El sistema de tasas de cambio está implementado (`src/exchange_rates/`). Existe
+un historial de cotizaciones, y el repositorio incorpora una automatización
+diaria mediante GitHub Actions para actualizar el historial de elTOQUE.
 
 Las tasas no son el objeto de estudio: son un insumo para expresar los precios
 inmobiliarios en una unidad comparable y para interpretar el contexto cambiario
 en el que se anuncian.
-
-## Qué se consultará en la API de elTOQUE
-
-Se ha solicitado acceso a la API de elTOQUE para obtener, si se concede,
-cotizaciones de baja frecuencia (frecuencia prevista: una vez al día) de:
-
-- **USD** (dólar estadounidense);
-- **EUR** (euro);
-- **MLC** (moneda libremente convertible).
-
-De cada cotización se conservará:
-
-- el valor;
-- la moneda de origen y la moneda de destino;
-- la fecha de publicación que indique la fuente, si la declara;
-- la fecha y hora de nuestra captura;
-- la URL y la fuente consultada.
-
-No se inventarán valores ni fechas. Si la fuente no publica un dato o este no
-puede interpretarse, se registrará la incidencia y no se completará el hueco.
-
-La integración con la API **todavía no está implementada**; el acceso se
-encuentra en trámite.
 
 ## Uso de los datos
 
@@ -121,15 +97,47 @@ pruebas funcionando y datos capturados de las fuentes implementadas.
 | Estructura del repositorio | Hecha |
 | Esquema de datos común | Documentado e implementado (`src/data/models.py`) |
 | Plan de análisis | Documentado |
-| Diseño del sistema de tasas | Documentado e implementado (`src/exchange_rates/`) |
+| Normalización y clasificación | Implementado (`src/data/normalization.py`, `src/data/mapper.py`) |
+| Almacenamiento de capturas | Implementado (`src/data/almacenamiento_anuncios.py`) |
+| Unificación de capturas | Implementado (`src/data/unificacion.py`) |
 | Extracción de anuncios | Implementado para GAOS y Revolico (`src/sources/gaos.py`, `src/sources/revolico.py`) |
 | Extracción de Mambbu | Pendiente (sujeta a autorización; ver `docs/decisiones.md` §8.3 y §10) |
 | CasasOasis | Excluida mientras no haya autorización expresa |
-| Almacenamiento de capturas | Implementado (`src/data/almacenamiento_anuncios.py`) |
-| Unificación de capturas | Implementado (`src/data/unificacion.py`) |
-| Limpieza y consolidación | Implementada (`src/data/normalization.py`, `src/data/mapper.py`) |
-| Análisis y visualizaciones | Análisis exploratorio de precios ejecutado (figuras en `outputs/figuras/`); no es un análisis definitivo de todo el mercado |
-| Salarios | Pendiente de incorporación al proyecto |
+| Sistema de tasas de cambio | Implementado (`src/exchange_rates/`) |
+| Automatización de elTOQUE | Implementada y ejecutada mediante GitHub Actions |
+| Identificación de municipios | Implementada (basada en texto, auditoría pendiente) |
+| Datos salariales (Resolución 14) | Integrados (`data/reference/salarios/`); análisis pendiente en el notebook |
+| Análisis exploratorio de precios | Ejecutado (figuras en `outputs/figuras/`); no es un análisis definitivo de todo el mercado |
+| Comparación salarial | Pendiente de implementar |
+| Análisis municipal | Pendiente de consolidar |
+| Análisis de características | Pendiente |
+| Precio por metro cuadrado | Pendiente de validar por las limitaciones de los datos de área |
+| Notebook de análisis definitivo | Pendiente |
+
+## Datos salariales
+
+Para la comparación de precios con ingresos, se han integrado los datos de la
+Resolución 14 de la Gaceta Oficial Ordinaria No. 60 (2026), disponibles en
+`data/reference/salarios/`:
+
+- `escala_general.csv` — escala salarial única del sector presupuestado.
+- `cargos_sectoriales.csv` — cargos de distintas fuentes sectoriales.
+- `pagos_adicionales.csv` — bonificaciones y coeficientes de ajuste.
+
+Estos datos se utilizarán para comparar los precios inmobiliarios con
+distintas referencias salariales. El análisis salarial todavía está pendiente
+de implementación en el notebook de análisis.
+
+## Identificación municipal
+
+Se ha implementado una función (`src/data/normalization.py`) para identificar
+los municipios de La Habana a partir de títulos y direcciones de los
+anuncios, mediante normalización y búsqueda de texto (sin distinción de
+mayúsculas ni tildes). No se utiliza spaCy y no se ha considerado necesario
+para esta primera solución.
+
+La identificación todavía requiere auditoría: no todos los anuncios tienen
+municipio asignado, y los resultados no están completamente validados.
 
 ## Estructura del repositorio
 
@@ -142,18 +150,19 @@ pruebas funcionando y datos capturados de las fuentes implementadas.
 ├── src/                   Código fuente
 │   ├── data/              Modelo, normalización, mapeo, almacenamiento y unificación
 │   │   ├── almacenamiento_anuncios.py
-│   │   ├── modelos.py
+│   │   ├── models.py
 │   │   ├── mapper.py
-│   │   ├── normalización.py
+│   │   ├── normalization.py
 │   │   └── unificacion.py
 │   ├── sources/           Extractores de fuentes inmobiliarias
 │   │   ├── gaos.py        (extracción de GAOS implementada)
 │   │   └── revolico.py    (extracción de Revolico implementada)
 │   ├── exchange_rates/    Sistema de tasas de cambio (implementado)
-│   └── analysis/          Análisis y visualizaciones (no implementado como módulo)
+│   └── analysis/          Directorio vacío (análisis pendiente en notebook)
 ├── tests/                 Pruebas del proyecto
 ├── outputs/               Resultados locales de análisis (gráficos y tablas de texto)
 ├── data/                  Datos locales (no se versionan)
+│   └── reference/         Datos de referencia (salariales, etc.)
 ├── requirements.txt
 └── README.md
 ```
@@ -200,38 +209,24 @@ procedencia de cada anuncio mediante el campo `fuente` en cada registro.
 
 ## Automatización de tasas de cambio (GitHub Actions)
 
-El proyecto incluye un workflow de GitHub Actions que consulta la API de elTOQUE
-una vez al día y guarda las cotizaciones en el historial de tasas de cambio.
+El proyecto incluye un workflow de GitHub Actions (`tasas-cambio.yml`) que
+consulta la API de elTOQUE una vez al día y guarda las cotizaciones en el
+historial de tasas de cambio (`data/raw/exchange_rates/historial_tasas.json`).
 
-### Configurar el secreto en GitHub
+La credencial de elTOQUE se administra mediante los secretos del repositorio;
+quien clone el proyecto no necesita obtener una clave propia para ejecutar las
+pruebas ni trabajar con los análisis.
 
-Antes de que el workflow funcione, debes agregar la clave API de elTOQUE como
-secreto del repositorio:
-
-1. Ve a **Settings** → **Secrets and variables** → **Actions** en GitHub.
-2. Haz clic en **New repository secret**.
-3. Nombre: `ELTOQUE_API_TOKEN`
-4. Valor: la clave API que obtuviste en `https://tasas-token.eltoque.com/`
-5. Haz clic en **Add secret**.
-
-### Ejecutar el workflow manualmente
-
-Desde la pestaña **Actions** de GitHub, selecciona el workflow
-**"Captura diaria de tasas de cambio (elTOQUE)"** y haz clic en
-**Run workflow**.
-
-### Qué hace el workflow
+El workflow:
 
 1. Descarga el repositorio e instala Python y las dependencias.
 2. Ejecuta `src/exchange_rates/capturar.py`, que consulta la API de elTOQUE
-   y guarda las cotizaciones nuevas en
-   `data/raw/exchange_rates/historial_tasas.json`.
+   y guarda las cotizaciones nuevas en el historial.
 3. Si hay cambios, los commitea y sube a la rama principal.
 4. Si no hay novedad (misma cotización que la anterior), no crea commit.
 
-El historial se guarda en `data/raw/exchange_rates/historial_tasas.json`.
-Este archivo es el único de `data/` que se versiona; el resto de los datos
-locales no se suben a GitHub.
+Este archivo de historial es el único de `data/` que se versiona; el resto de
+los datos locales no se suben a GitHub.
 
 ## Documentación
 
@@ -248,10 +243,17 @@ locales no se suben a GitHub.
 
 - Es un trabajo de primer año: prioriza la claridad y la trazabilidad sobre la
   complejidad técnica.
-- Los anuncios no representan todas las transacciones ni todo el mercado.
-- Los resultados dependerán de la cobertura real de los datos y se reportará el
-  tamaño de muestra de cada cálculo.
-- Las conclusiones serán descriptivas; no se afirmarán relaciones causales.
+- La muestra actual procede de GAOS y Revolico y no representa necesariamente
+  todo el mercado inmobiliario de La Habana.
+- Los precios son precios anunciados, no precios finales de compraventa.
+- Existen valores ausentes en las características de los inmuebles.
+- La identificación de municipios se basa en texto y todavía requiere auditoría.
+- Los datos de área son incompletos y sus unidades deben verificarse antes de
+  calcular precios por metro cuadrado.
+- Las tasas oficiales e informales representan referencias distintas.
+- La equivalencia entre precios y meses de salario no representa el tiempo real
+  necesario para comprar una vivienda.
 - Revolico y GAOS presentan restricciones de acceso (HTTP 403 y 429
   respectivamente desde `requests`). Mambbu prohíbe la extracción automatizada
-  en sus términos de uso. Consulte `docs/decisiones.md` §8 y §10 para detalles.
+  en sus términos de uso. CasasOasis queda excluida mientras no haya
+  autorización expresa. Consulte `docs/decisiones.md` §8 y §10 para detalles.

@@ -20,6 +20,9 @@ from data.almacenamiento_anuncios import (
     guardar_captura_completa,
 )
 from data.models import AnuncioInmobiliario
+from data.normalization import (
+    identificar_municipio_en_titulo_revolico,
+)
 
 # URL pública de GAOS para anuncios de venta de casas en La Habana.
 REVOLICO_URL = (
@@ -209,7 +212,7 @@ def mapear_anuncio_revolico(dato: dict, fecha_captura: str) -> AnuncioInmobiliar
         fecha_publicacion=None,
         fecha_actualizacion=None,
         provincia="La Habana",
-        municipio=None,
+        municipio=identificar_municipio_en_titulo_revolico(dato.get("titulo")),
         reparto=None,
         direccion_texto=None,
         tipo_operacion="venta",

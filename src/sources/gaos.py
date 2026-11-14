@@ -25,6 +25,7 @@ from data.almacenamiento_anuncios import (
 )
 from data.models import AnuncioInmobiliario
 from data.normalization import (
+    identificar_municipio_gaos,
     normalizar_amueblado,
     normalizar_estado_conservacion,
     normalizar_moneda,
@@ -189,10 +190,20 @@ def mapear_anuncio(dato: dict) -> AnuncioInmobiliario:
     moneda = normalizar_moneda(dato.get("vccurrencytype"))
 
     # --- Municipio / dirección ---
-    # GAOS no tiene un campo separado de municipio; se guarda la dirección
-    # completa en direccion_texto y se deja municipio como None.
+    # GAOS no tiene un campo separado de municipio en los datos de la API;
+    # se intenta identificar a partir del título y la dirección analizados
+    # por separado. Si ambos indican municipios diferentes, se deja None y
+    # se registra la contradicción en notas_calidad.
     direccion_texto = dato.get("vcaddress")
-    municipio = None
+    municipio, contradiccion_municipio = identificar_municipio_gaos(
+        dato.get("vctitle"), direccion_texto
+    )
+    notas_calidad = None
+    if contradiccion_municipio:
+        notas_calidad = (
+            "Contradicción entre título y dirección para la identificación "
+            "del municipio; se dejó como None."
+        )
 
     # --- Área ---
     area_valor = dato.get("iarea")
@@ -267,7 +278,7 @@ def mapear_anuncio(dato: dict) -> AnuncioInmobiliario:
         vendedor_tipo=vendedor_tipo,
         # --- Calidad de los datos ---
         estado_parseo="ok",
-        notas_calidad=None,
+        notas_calidad=notas_calidad,
         es_posible_duplicado=False,
         duplicado_grupo=None,
     )

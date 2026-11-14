@@ -56,7 +56,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/raw/exchange_rates/historial_tasas.json
+          git add -f data/raw/exchange_rates/historial_tasas.json
           git commit -m "feat(tasas): agregar cotización diaria de elTOQUE"
           git fetch origin main:refs/remotes/origin/main
           if [ -n "$(git status --porcelain)" ]; then

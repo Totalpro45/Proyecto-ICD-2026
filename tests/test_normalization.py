@@ -8,7 +8,22 @@ import sys
 
 sys.path.insert(0, "src")
 
-from data.normalization import normalizar_moneda, normalizar_tipo_inmueble, normalizar_tipo_operacion, normalizar_municipio, normalizar_tipo_area, normalizar_estado_conservacion, normalizar_amueblado, normalizar_fecha, normalizar_precio
+from data.normalization import (
+    identificar_municipio_en_texto,
+    identificar_municipio_en_titulo_revolico,
+    identificar_municipio_gaos,
+    _es_referencia_playa_geografica,
+    _es_municipio_compuesto,
+    normalizar_moneda,
+    normalizar_tipo_inmueble,
+    normalizar_tipo_operacion,
+    normalizar_municipio,
+    normalizar_tipo_area,
+    normalizar_estado_conservacion,
+    normalizar_amueblado,
+    normalizar_fecha,
+    normalizar_precio,
+)
 
 def test_moneda_usd():
     assert normalizar_moneda("USD") == "USD"
@@ -616,3 +631,235 @@ def test_precio_no_string_devuelve_none():
     assert normalizar_precio(123) == (None, None)
     assert normalizar_precio(0) == (None, None)
     assert normalizar_precio(True) == (None, None)
+
+
+# --- Pruebas para _es_referencia_playa_geografica ---
+
+
+def test_es_referencia_playa_geografica_cerca_de_la_playa():
+    assert _es_referencia_playa_geografica("cerca de la playa") is True
+
+
+def test_es_referencia_playa_geografica_playa_de():
+    assert _es_referencia_playa_geografica("playa de Bacuranao") is True
+
+
+def test_es_referencia_playa_geografica_en_playa():
+    """'en playa' al final del título se considera referencia a playa geográfica."""
+    assert _es_referencia_playa_geografica("en playa") is True
+
+
+def test_es_referencia_playa_geografica_no_playa():
+    """'Casa en Playa' sola se considera posible referencia a playa geográfica."""
+    assert _es_referencia_playa_geografica("Casa en Playa") is True
+    assert _es_referencia_playa_geografica("Oportunidad en Playa") is True
+
+
+def test_es_referencia_playa_geografica_none():
+    assert _es_referencia_playa_geografica(None) is False
+
+
+# --- Pruebas para _es_municipio_compuesto ---
+
+
+def test_es_municipio_compuesto_guion():
+    assert _es_municipio_compuesto("Cerro", "el Cerro-plaza") is True
+
+
+def test_es_municipio_compuesto_no_compuesto():
+    assert _es_municipio_compuesto("Cerro", "en el Cerro") is False
+
+
+def test_es_municipio_compuesto_none():
+    assert _es_municipio_compuesto(None, "texto") is False
+    assert _es_municipio_compuesto("Cerro", None) is False
+
+
+# --- Pruebas para identificar_municipio_en_titulo_revolico ---
+
+
+def test_identificar_municipio_revolico_playa_geografica_devuelve_none():
+    """Referencia a playa geográfica no debe asignar municipio Playa."""
+    assert identificar_municipio_en_titulo_revolico(
+        "cercanía a la playa y tranquilidad en brisas del mar, guanabo"
+    ) is None
+    assert identificar_municipio_en_titulo_revolico(
+        "Se vende casa en Celimar(playa de Bacuranao)"
+    ) is None
+
+
+def test_identificar_municipio_revolico_playa_ambigua_devuelve_none():
+    """'en playa' al final o seguido de separador se considera playa geográfica."""
+    assert identificar_municipio_en_titulo_revolico("Venta de casas en la playa") is None
+    assert identificar_municipio_en_titulo_revolico("VENTA EN LA PLAYA") is None
+    assert identificar_municipio_en_titulo_revolico("Oportunidad en Playa | 37 y 42") is None
+    assert identificar_municipio_en_titulo_revolico("Venta de casas en playa") is None
+
+
+def test_identificar_municipio_revolico_playa_municipio():
+    """'en la zona de Playa' con contexto de zona se asigna al municipio."""
+    assert identificar_municipio_en_titulo_revolico("Apartamento en la zona de Playa") == "Playa"
+    assert identificar_municipio_en_titulo_revolico("Casa en zona de Playa | 37 y 42") == "Playa"
+
+
+def test_identificar_municipio_revolico_cerro_compuesto_devuelve_none():
+    """'cerro-plaza' es expresión compuesta, no se asigna Cerro."""
+    assert identificar_municipio_en_titulo_revolico("Hermosa casa en el Cerro-plaza") is None
+
+
+def test_identificar_municipio_revolico_cerro_claro():
+    """'en el Cerro' con artículo claro se asigna al municipio Cerro."""
+    assert identificar_municipio_en_titulo_revolico("Casa en el Cerro") == "Cerro"
+
+
+def test_identificar_municipio_revolico_none():
+    assert identificar_municipio_en_titulo_revolico(None) is None
+    assert identificar_municipio_en_titulo_revolico("") is None
+
+
+# --- Pruebas para identificar_municipio_gaos ---
+
+
+def test_identificar_municipio_gaos_titulo_y_direccion_coinciden():
+    """Título y dirección coinciden: se usa ese municipio."""
+    municipio, contradiccion = identificar_municipio_gaos(
+        "Casa en Playa", "Playa, La Habana"
+    )
+    assert municipio == "Playa"
+    assert contradiccion is False
+
+
+def test_identificar_municipio_gaos_solo_titulo():
+    """Solo el título identifica municipio."""
+    municipio, contradiccion = identificar_municipio_gaos(
+        "Casa en zona de Playa", None
+    )
+    assert municipio == "Playa"
+    assert contradiccion is False
+
+
+def test_identificar_municipio_gaos_solo_direccion():
+    """Solo la dirección identifica municipio."""
+    municipio, contradiccion = identificar_municipio_gaos(
+        None, "Playa, La Habana"
+    )
+    assert municipio == "Playa"
+    assert contradiccion is False
+
+
+def test_identificar_municipio_gaos_contradiccion():
+    """Título y dirección indican municipios diferentes: None y contradicción."""
+    municipio, contradiccion = identificar_municipio_gaos(
+        "Casa en Centro Habana", "Playa, La Habana"
+    )
+    assert municipio is None
+    assert contradiccion is True
+
+
+def test_identificar_municipio_gaos_sin_identificacion():
+    """Ninguno identifica municipio: None."""
+    municipio, contradiccion = identificar_municipio_gaos(
+        "Casa en venta", "Calle 23"
+    )
+    assert municipio is None
+    assert contradiccion is False
+
+
+def test_identificar_municipio_gaos_none_argumentos():
+    assert identificar_municipio_gaos(None, None) == (None, False)
+
+
+def test_identificar_municipio_gaos_playa_geografica_titulo_devuelve_none():
+    """Título con referencia a playa geográfica no asigna municipio Playa."""
+    municipio, contradiccion = identificar_municipio_gaos(
+        "Venta de apartamento en Guanabo,a 7 cuadras de la playa aproximadamente",
+        "Peñas Altas, La Habana",
+    )
+    assert municipio is None
+    assert contradiccion is False
+
+
+def test_identificar_municipio_gaos_playa_geografica_direccion_valida():
+    """Dirección con municipio Playa se usa aunque el título tenga playa geográfica."""
+    municipio, contradiccion = identificar_municipio_gaos(
+        "Venta de apartamento en Guanabo,a 7 cuadras de la playa aproximadamente",
+        "Playa, La Habana",
+    )
+    assert municipio == "Playa"
+    assert contradiccion is False
+
+
+def test_identificar_municipio_gaos_playa_legitima_titulo():
+    """Título con 'Playa' sin referencia a playa geográfica se asigna."""
+    municipio, contradiccion = identificar_municipio_gaos(
+        "Casa en zona de Playa", None
+    )
+    assert municipio == "Playa"
+    assert contradiccion is False
+
+
+def test_identificar_municipio_gaos_playa_geografica_sin_direccion_devuelve_none():
+    """Solo título con playa geográfica, sin dirección: None."""
+    municipio, contradiccion = identificar_municipio_gaos(
+        "7 cuadras de la playa aproximadamente", None
+    )
+    assert municipio is None
+    assert contradiccion is False
+
+
+# --- Pruebas para identificar_municipio_en_texto ---
+
+
+def test_identificar_municipio_texto_claro():
+    assert identificar_municipio_en_texto("Casa en Playa") == "Playa"
+    assert identificar_municipio_en_texto("Apartamento en Centro Habana") == "Centro Habana"
+    assert identificar_municipio_en_texto("Vivienda en La Lisa") == "La Lisa"
+
+
+def test_identificar_municipio_con_tildes():
+    assert identificar_municipio_en_texto("Casa en Plaza de la Revolución") == "Plaza de la Revolución"
+    assert identificar_municipio_en_texto("Apartamento en San Miguel del Padrón") == "San Miguel del Padrón"
+    assert identificar_municipio_en_texto("Venta en La Habana del Este") == "La Habana del Este"
+
+
+def test_identificar_municipio_mayusculas():
+    assert identificar_municipio_en_texto("CASA EN PLAYA") == "Playa"
+    assert identificar_municipio_en_texto("Apartamento EN CENTRO HABANA") == "Centro Habana"
+
+
+def test_identificar_municipio_sin_tildes_en_texto():
+    assert identificar_municipio_en_texto("Casa en Plaza de la Revolucion") == "Plaza de la Revolución"
+    assert identificar_municipio_en_texto("Vivienda en San Miguel del Padron") == "San Miguel del Padrón"
+
+
+def test_identificar_municipio_ambiguo_devuelve_none():
+    assert identificar_municipio_en_texto("Casa en Playa y Centro Habana") is None
+    assert identificar_municipio_en_texto("Playa y Centro Habana") is None
+
+
+def test_identificar_municipio_sin_coincidencia_devuelve_none():
+    assert identificar_municipio_en_texto("Casa en Vedado") is None
+    assert identificar_municipio_en_texto("Apartamento en Miramar") is None
+    assert identificar_municipio_en_texto("Venta en Guanabo") is None
+    assert identificar_municipio_en_texto("Casa en La Habana") is None
+
+
+def test_identificar_municipio_none_devuelve_none():
+    assert identificar_municipio_en_texto(None) is None
+
+
+def test_identificar_municipio_vacio_devuelve_none():
+    assert identificar_municipio_en_texto("") is None
+    assert identificar_municipio_en_texto("   ") is None
+
+
+def test_identificar_municipio_no_string_devuelve_none():
+    assert identificar_municipio_en_texto(123) is None
+    assert identificar_municipio_en_texto(0) is None
+
+
+def test_identificar_municipio_word_boundary():
+    # 'playa' como subcadena de otra palabra no debe coincidir
+    assert identificar_municipio_en_texto("Casera en venta") is None
+    # 'playa' como palabra completa sí debe coincidir
+    assert identificar_municipio_en_texto("Casa en Playa") == "Playa"
