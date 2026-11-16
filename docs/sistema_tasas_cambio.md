@@ -75,7 +75,21 @@ Esas son decisiones metodológicas posteriores.
 | Fuente | `fuente` | Qué es | Qué aporta al proyecto |
 |---|---|---|---|
 | ElToque | `eltoque` | Medio de prensa cubano. **No es una institución oficial.** | Información sobre el mercado informal (la categoría se asigna por cotización). |
-| Banco Central de Cuba (BCC) | `bcc` | Banco central del país; **institución oficial**. | Tasas oficiales. |
+| Banco Central de Cuba (BCC) | `bcc` | Banco central del país; **institución oficial**. | Tasas oficiales del Segmento III («Tasa Población y FGNE»). |
+
+### 3.5 Implementación del BCC
+
+El BCC publica una API REST pública en `https://api.bc.gob.cu/v1/tasas-de-cambio/activas` que devuelve tasas de cambio para 13 monedas. Cada registro incluye tres tasas: `tasaOficial` (Segmento I), `tasaPublica` (Segmento II) y `tasaEspecial` (Segmento III).
+
+Este proyecto utiliza exclusivamente `tasaEspecial`, que corresponde al Segmento III («Tasa Población y FGNE»), la tasa variable dirigida a personas naturales y determinados participantes no estatales. Esta correspondencia se infiere de los valores oficiales publicados por el BCC: para USD, `tasaOficial = 24` (Segmento I) y `tasaPublica = 120` (Segmento II), mientras que `tasaEspecial` es el valor variable del Segmento III.
+
+**Criterio de identificación:** `tasaEspecial` se identifica como Segmento III por correspondencia con los valores oficiales conocidos de los Segmentos I y II. La respuesta JSON de la API **no incluye una etiqueta explícita de segmento** en cada registro; la identificación se documenta en el código y en esta documentación como criterio de implementación, sin presentar el campo JSON como si incluyera dicha etiqueta.
+
+Monedas disponibles en la API del BCC (13): AUD, CAD, CHF, CNY, DKK, EUR, GBP, JPY, MXN, NOK, RUB, SEK, USD.
+
+**MLC no está disponible en la API del BCC.** No se genera cotización MLC para esta fuente.
+
+No se extraen `tasaOficial` ni `tasaPublica`. Cada cotización BCC incluye `segmento = "III"`.
 
 Página de referencia del BCC:
 `https://www.bc.gob.cu/tasas-de-cambio`.
@@ -499,6 +513,28 @@ elimina nada.
 9. **Copia de seguridad:** antes de escribir, conviene conservar una copia del
    archivo anterior. Es una medida sencilla y fácil de explicar.
 
+### 10.1 Flujo de captura con dos fuentes
+
+El script de captura (`src/exchange_rates/capturar.py`) procesa cada fuente de
+forma independiente:
+
+1. Crea una actualización con ambas fuentes (`["eltoque", "bcc"]`).
+2. Intenta consultar elTOQUE. Si falla, registra una incidencia y continúa con
+   BCC.
+3. Intenta consultar BCC. Si falla, registra una incidencia y continúa.
+4. Registra las cotizaciones obtenidas de cada fuente en el mismo historial.
+5. Registra la actualización con el resultado por fuente (`ok`, `sin_novedad`
+   o `error`).
+6. Devuelve código 0 si al menos una fuente se procesó correctamente, 1 si
+   ambas fallaron.
+
+Cada fuente tiene su propio tratamiento de errores:
+- elTOQUE: `ElToqueAuthError` (401), `ElToqueConnectionError` (red/JSON),
+  `ElToqueError` (otros HTTP).
+- BCC: `BccConnectionError` (red/JSON), `BccStructureError` (estructura
+  inesperada), `BccError` (otros HTTP).
+
+
 ---
 
 ## 11. Validación y sospecha
@@ -764,14 +800,18 @@ que ninguna de las dos fuentes publicó y que no podríamos justificar.
 
 ## 17. Decisiones pendientes
 
-1. **Publicaciones concretas del BCC**: qué tasas publica, con qué periodicidad y
-   en qué formato. La institución ya está identificada, pero sus publicaciones
-   deben verificarse antes de implementar.
-2. **URLs y forma de acceso** a ElToque y al BCC, y verificación de sus
-   condiciones de uso. Del BCC solo se conoce la página de referencia; de
-   ElToque no se fija ninguna en este documento. No se asume permiso de
-   automatización.
-3. **Modalidades y segmentos reales** que publica cada fuente.
+1. **Publicaciones concretas del BCC**: ahora conocidas parcialmente. La API
+   pública `https://api.bc.gob.cu/v1/tasas-de-cambio/activas` devuelve 13 monedas
+   con tres tasas cada una (`tasaOficial`, `tasaPublica`, `tasaEspecial`). Se
+   utiliza `tasaEspecial` como Segmento III por correspondencia con los valores
+   oficiales conocidos (Segmento I = 24, Segmento II = 120 para USD). Esta
+   correspondencia se infiere de los valores, no está etiquetada explícitamente
+   en la respuesta JSON de la API. No se ha podido acceder a la documentación
+   OpenAPI (`/docs` devuelve 403).
+2. **URLs y forma de acceso**: resueltas para BCC (endpoint público, sin
+   autenticación). Para elTOQUE se mantiene sin cambios.
+3. **Modalidades y segmentos reales**: parcialmente resueltas para BCC
+   (Segmento III vía `tasaEspecial`). Pendiente confirmación oficial explícita.
 4. **Hora exacta** de la actualización diaria y zona horaria de referencia.
 5. **Criterios de sospecha:** qué anomalías concretas justifican marcar una
    cotización. Debe documentarse antes de usarlo de forma sistemática.

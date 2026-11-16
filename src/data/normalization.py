@@ -372,6 +372,22 @@ MUNICIPIOS_LA_HABANA = {
 }
 
 
+# Localidades y barrios de La Habana y el municipio al que pertenecen.
+# Las claves están normalizadas (sin tildes, minúsculas) para facilitar la
+# búsqueda en texto libre. Los valores son los nombres canónicos del municipio.
+# Estas localidades NO son municipios independientes: se utilizan como
+# indicadores del municipio al que pertenece la ubicación anunciada y para
+# detectar contradicciones entre título y dirección.
+LOCALIDADES_LA_HABANA = {
+    "guanabo": "La Habana del Este",
+    "vedado": "Plaza de la Revolución",
+    "nuevo vedado": "Plaza de la Revolución",
+    "miramar": "Playa",
+    "santa fe": "Playa",
+    "cojimar": "La Habana del Este",
+}
+
+
 def _quitar_tildes(texto):
     """Devuelve el texto en minúsculas sin tildes ni otros diacríticos."""
     return ''.join(
@@ -414,6 +430,42 @@ def identificar_municipio_en_texto(texto):
     return None
 
 
+def identificar_localidad_en_texto(texto):
+    """Busca una localidad o barrio de La Habana en un texto libre.
+
+    Devuelve el municipio canónico al que pertenece la localidad si hay
+    exactamente una coincidencia clara. Devuelve None si no hay coincidencia
+    o si la coincidencia es ambigua (más de una localidad o localidades de
+    municipios diferentes).
+
+    No utiliza coincidencias parciales ni ambiguas que puedan confundir
+    nombres de calles, barrios o lugares con localidades.
+    """
+    if texto is None:
+        return None
+
+    if not isinstance(texto, str):
+        return None
+
+    if not texto.strip():
+        return None
+
+    texto_limpio = _quitar_tildes(texto)
+    coincidencias = []
+
+    for clave_normalizada, municipio_canonico in LOCALIDADES_LA_HABANA.items():
+        patron = r'\b' + re.escape(clave_normalizada) + r'\b'
+        if re.search(patron, texto_limpio):
+            coincidencias.append(municipio_canonico)
+
+    municipios_unicos = set(coincidencias)
+
+    if len(municipios_unicos) == 1:
+        return municipios_unicos.pop()
+
+    return None
+
+
 def _es_referencia_playa_geografica(texto):
     """Detecta si la palabra 'playa' en el texto se refiere a una playa
     geográfica, no al municipio Playa.
@@ -438,6 +490,13 @@ def _es_referencia_playa_geografica(texto):
         r'\bde la playa\b',
         r'\bplaya geográfica\b',
         r'\bplaya geografica\b',
+        r'\ba metros de la playa\b',
+        r'\ba pocos metros de la playa\b',
+        r'\b\d+ metros de la playa\b',
+        r'\b\d+ cuadras de la playa\b',
+        r'\b\d+ cuadras de playa\b',
+        r'\bmetros de la playa\b',
+        r'\bcuadras de la playa\b',
     ]
 
     for patron in patrones:
@@ -510,12 +569,18 @@ def identificar_municipio_gaos(titulo, direccion):
       y se debe registrar la contradicción en notas_calidad.
     - Si solo uno de los dos aporta una identificación clara, se usa ese
       municipio.
-    - Si el título identifica 'Playa' pero es una referencia a playa
-      geográfica (no al municipio), ese municipio del título se descarta.
+    - Si el título o la dirección identifican 'Playa' pero es una referencia
+      a playa geográfica (no al municipio), ese municipio se descarta.
+    - Las localidades y barrios (Vedado, Miramar, Guanabo, etc.) se resuelven
+      al municipio al que pertenecen cuando no hay una identificación directa
+      de municipio, y se usan para detectar contradicciones.
     - Si ninguno aporta identificación, devuelve None.
 
-    Devuelve una tupla (municipio, contradiccion) donde contradiccion es True
-    si se detectó un conflicto entre título y dirección.
+    Devuelve una tupla (municipio, contradiccion, fuente, categoria) donde:
+      - municipio: nombre canónico del municipio o None.
+      - contradiccion: True si se detectó un conflicto entre título y dirección.
+      - fuente: identificador de la fuente de datos ("gaos").
+      - categoria: tipo de mercado ("mercado_informal").
     """
     municipio_titulo_raw = identificar_municipio_en_texto(titulo) if titulo else None
     municipio_direccion = identificar_municipio_en_texto(direccion) if direccion else None
@@ -530,15 +595,37 @@ def identificar_municipio_gaos(titulo, direccion):
     ):
         municipio_titulo = None
 
+    # Si la dirección identifica 'Playa' pero es una referencia a playa
+    # geográfica, descartar ese municipio de la dirección.
+    if (
+        municipio_direccion == 'Playa'
+        and direccion is not None
+        and _es_referencia_playa_geografica(direccion)
+    ):
+        municipio_direccion = None
+
+    # Detectar localidades y sus municipios equivalentes.
+    # Se usan como fallback cuando no hay identificación directa de municipio,
+    # y para detectar contradicciones entre título y dirección.
+    localidad_titulo = identificar_localidad_en_texto(titulo) if titulo else None
+    localidad_direccion = identificar_localidad_en_texto(direccion) if direccion else None
+
+    # Si no hay municipio directo pero sí localidad, usar el municipio de la localidad.
+    if municipio_titulo is None and localidad_titulo is not None:
+        municipio_titulo = localidad_titulo
+
+    if municipio_direccion is None and localidad_direccion is not None:
+        municipio_direccion = localidad_direccion
+
     if municipio_titulo is not None and municipio_direccion is not None:
         if municipio_titulo != municipio_direccion:
-            return None, True  # Contradicción
-        return municipio_titulo, False  # Ambos coinciden
+            return None, True, 'gaos', 'mercado_informal'  # Contradicción
+        return municipio_titulo, False, 'gaos', 'mercado_informal'  # Ambos coinciden
 
     if municipio_titulo is not None:
-        return municipio_titulo, False
+        return municipio_titulo, False, 'gaos', 'mercado_informal'
 
     if municipio_direccion is not None:
-        return municipio_direccion, False
+        return municipio_direccion, False, 'gaos', 'mercado_informal'
 
-    return None, False
+    return None, False, 'gaos', 'mercado_informal'

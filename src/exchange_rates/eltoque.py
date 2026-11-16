@@ -9,6 +9,9 @@ almacena en código ni se sube a GitHub.
 
 No implementa captura diaria ni conversiones de precios de anuncios;
 solo consulta y devuelve las cotizaciones tal como las publica elTOQUE.
+
+Cada cotización devuelta incluye los metadatos de procedencia:
+`fuente = "eltoque"` y `categoria = "mercado_informal"`.
 """
 
 from __future__ import annotations
@@ -27,12 +30,24 @@ ELTOQUE_API_BASE_URL = os.environ.get(
 # Endpoint de cotizaciones del mercado informal.
 ELTOQUE_TRMI_ENDPOINT = f"{ELTOQUE_API_BASE_URL.rstrip('/')}/v1/trmi"
 
+# URL de la fuente, usada en el campo url_fuente de cada cotización.
+ELTOQUE_URL_FUENTE = ELTOQUE_TRMI_ENDPOINT
+
 # Monedas que el proyecto rastrea. ElTOQUE las publica denominadas en CUP.
 # Nota: elTOQUE puede publicar el euro con el código "ECU" en lugar de "EUR".
 # Esta equivalencia no ha sido confirmada oficialmente por elTOQUE, por lo que
 # no se realiza mapeo automático de ECU a EUR. Cada código se conserva tal cual
 # se publica, y cualquier análisis posterior deberá verificar la equivalencia.
 MONEDAS_OBJETIVO = {"USD", "EUR", "MLC"}
+
+# Categoría de mercado para las cotizaciones de elTOQUE.
+ELTOQUE_CATEGORIA = "mercado_informal"
+
+# Fuente que publica las cotizaciones de elTOQUE.
+ELTOQUE_FUENTE = "eltoque"
+
+# Tipo de tasa para elTOQUE (la fuente no especifica una modalidad).
+ELTOQUE_TIPO_TASA = "no_especificado"
 
 
 class ElToqueError(Exception):
@@ -152,6 +167,9 @@ def extraer_cotizaciones(datos_api: dict) -> list[dict]:
     Los valores se conservan tal como los publica elTOQUE (CUP por 1 unidad
     de moneda de origen), sin redondear ni convertir.
 
+    Cada cotización incluye los metadatos de procedencia:
+    `fuente = "eltoque"` y `categoria = "mercado_informal"`.
+
     Args:
         datos_api: Diccionario devuelto por consultar_tasas().
 
@@ -163,6 +181,10 @@ def extraer_cotizaciones(datos_api: dict) -> list[dict]:
         - valor_texto_original: representación textual del valor original
         - fecha_publicacion: fecha/hora de la cotización según elTOQUE (ISO 8601)
         - valor_bruto: valor numérico tal como lo publica elTOQUE
+        - fuente: siempre "eltoque"
+        - categoria: siempre "mercado_informal"
+        - url_fuente: endpoint de elTOQUE consultado
+        - tipo_tasa: siempre "no_especificado"
     """
     tasas_raw = datos_api.get("tasas", {})
     if not isinstance(tasas_raw, dict):
@@ -198,6 +220,10 @@ def extraer_cotizaciones(datos_api: dict) -> list[dict]:
                 "valor_texto_original": str(valor_raw),
                 "fecha_publicacion": fecha_publicacion,
                 "valor_bruto": valor_raw,
+                "fuente": ELTOQUE_FUENTE,
+                "categoria": ELTOQUE_CATEGORIA,
+                "url_fuente": ELTOQUE_URL_FUENTE,
+                "tipo_tasa": ELTOQUE_TIPO_TASA,
             }
         )
 

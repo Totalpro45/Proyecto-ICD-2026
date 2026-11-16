@@ -177,6 +177,18 @@ def test_extraer_cotizaciones_monedas_objetivo():
     assert "BTC" not in monedas
 
 
+def test_extraer_cotizaciones_fuente_y_categoria():
+    """Cada cotización incluye fuente='eltoque' y categoria='mercado_informal'."""
+    cotizaciones = eltoque.extraer_cotizaciones(DATOS_API_EJEMPLO)
+
+    assert len(cotizaciones) > 0
+    for c in cotizaciones:
+        assert c["fuente"] == "eltoque"
+        assert c["categoria"] == "mercado_informal"
+        assert c["url_fuente"] == "https://tasas.eltoque.com/v1/trmi"
+        assert c["tipo_tasa"] == "no_especificado"
+
+
 def test_extraer_cotizaciones_valores_conservados():
     """Los valores se conservan tal como los publica elTOQUE."""
     cotizaciones = eltoque.extraer_cotizaciones(DATOS_API_EJEMPLO)

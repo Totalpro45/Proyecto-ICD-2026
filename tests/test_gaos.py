@@ -135,16 +135,17 @@ def test_mapear_anuncio_precio_y_moneda():
 
 
 def test_mapear_anuncio_direccion_y_municipio():
-    """Dirección se extrae del anuncio; municipio queda None cuando no se reconoce."""
+    """Dirección se extrae del anuncio; Vedado se resuelve como Plaza de la Revolución."""
     anuncio = mapear_anuncio(ANUNCIO_EJEMPLO_APARTAMENTO)
     assert anuncio.direccion_texto == "Calle 23, Vedado"
-    assert anuncio.municipio is None
+    assert anuncio.municipio == "Plaza de la Revolución"
 
 
 def test_mapear_anuncio_municipio_desde_titulo():
     """Si el título menciona un municipio de La Habana, se identifica."""
     dato = dict(ANUNCIO_EJEMPLO_APARTAMENTO)
     dato["vctitle"] = "Apartamento en venta en zona de Playa"
+    dato["vcaddress"] = "Calle 23"
     anuncio = mapear_anuncio(dato)
     assert anuncio.municipio == "Playa"
 

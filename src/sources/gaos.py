@@ -195,8 +195,8 @@ def mapear_anuncio(dato: dict) -> AnuncioInmobiliario:
     # por separado. Si ambos indican municipios diferentes, se deja None y
     # se registra la contradicción en notas_calidad.
     direccion_texto = dato.get("vcaddress")
-    municipio, contradiccion_municipio = identificar_municipio_gaos(
-        dato.get("vctitle"), direccion_texto
+    municipio, contradiccion_municipio, fuente_anuncio, categoria_anuncio = (
+        identificar_municipio_gaos(dato.get("vctitle"), direccion_texto)
     )
     notas_calidad = None
     if contradiccion_municipio:
