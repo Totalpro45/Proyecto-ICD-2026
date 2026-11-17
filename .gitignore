@@ -1,9 +1,12 @@
 # Datos locales (no se versionan)
 data/raw/*
 !data/raw/exchange_rates/
-data/raw/exchange_rates/*
 !data/raw/exchange_rates/historial_tasas.json
-data/processed/
+data/raw/exchange_rates/*
+data/processed/*
+!data/processed/anuncios/
+data/processed/anuncios/*
+!data/processed/anuncios/unificado_procesado_83924fda_20261115_034632.json
 
 # Resultados locales de análisis
 outputs/
@@ -29,3 +32,6 @@ __pycache__/
 
 # Archivo de depuración temporal
 tests/debug_aserecuba.py
+
+# Textos auxiliares extraídos de documentos de referencia (no se versionan)
+docs_referencias_*_texto*.txt

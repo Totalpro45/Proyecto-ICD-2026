@@ -105,14 +105,14 @@ pruebas funcionando y datos capturados de las fuentes implementadas.
 | CasasOasis | Excluida mientras no haya autorización expresa |
 | Sistema de tasas de cambio | Implementado (`src/exchange_rates/`) |
 | Automatización de elTOQUE | Implementada y ejecutada mediante GitHub Actions |
-| Identificación de municipios | Implementada (basada en texto, auditoría pendiente) |
-| Datos salariales (Resolución 14) | Integrados (`data/reference/salarios/`); análisis pendiente en el notebook |
-| Análisis exploratorio de precios | Ejecutado (figuras en `outputs/figuras/`); no es un análisis definitivo de todo el mercado |
-| Comparación salarial | Pendiente de implementar |
-| Análisis municipal | Pendiente de consolidar |
-| Análisis de características | Pendiente |
-| Precio por metro cuadrado | Pendiente de validar por las limitaciones de los datos de área |
-| Notebook de análisis definitivo | Pendiente |
+| Identificación de municipios | Implementada (basada en texto; los tests de normalización presentan fallos que requieren revisión; cobertura limitada) |
+| Datos salariales (Resolución 14) | Integrados (`data/reference/salarios/`); análisis implementado en el notebook (sección 13) |
+| Análisis exploratorio de precios | Ejecutado en el notebook (secciones 7-9); no genera figuras en `outputs/figuras/`; no es un análisis definitivo de todo el mercado |
+| Comparación salarial | Implementada en el notebook (sección 13) |
+| Análisis municipal | Pendiente de consolidar (identificación de municipios con cobertura limitada y tests pendientes de revisión) |
+| Análisis de características | Implementado en el notebook (sección 12) |
+| Precio por metro cuadrado | Pendiente (cobertura de superficie insuficiente para análisis general) |
+| Notebook de análisis definitivo | Implementado (`notebooks/analisis_vivienda.ipynb`) |
 
 ## Datos salariales
 
@@ -124,9 +124,9 @@ Resolución 14 de la Gaceta Oficial Ordinaria No. 60 (2026), disponibles en
 - `cargos_sectoriales.csv` — cargos de distintas fuentes sectoriales.
 - `pagos_adicionales.csv` — bonificaciones y coeficientes de ajuste.
 
-Estos datos se utilizarán para comparar los precios inmobiliarios con
-distintas referencias salariales. El análisis salarial todavía está pendiente
-de implementación en el notebook de análisis.
+Estos datos se utilizan para comparar los precios inmobiliarios con
+distintas referencias salariales. El análisis salarial está implementado en
+el notebook (sección 13).
 
 ## Identificación municipal
 

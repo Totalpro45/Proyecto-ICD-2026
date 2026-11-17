@@ -74,6 +74,14 @@ Convenciones:
 | `tasa_fuente` | texto | no | Fuente de la tasa aplicada. |
 | `precio_m2_usd` | decimal | no | Derivado: `precio_usd / area_m2`, solo si ambos existen y `area_m2 > 0`. |
 
+> **Nota sobre el estado actual:** en el archivo unificado procesado
+> (`data/processed/anuncios/unificado_procesado_83924fda_20261115_034632.json`),
+> los campos `precio_usd`, `tasa_conversion_usd`, `tasa_fecha`, `tasa_fuente`
+> y `tasa_id` permanecen vacíos (`null`) en todos los registros, ya que no se
+> ha aplicado ninguna conversión a USD. Estos campos están definidos en el
+> esquema para cuando exista una tasa de cambio documentada y justificable;
+> hasta entonces, los precios se conservan únicamente en su moneda original.
+
 #### 1.4.1 Trazabilidad de la conversión
 
 Para que `precio_usd` sea reproducible hasta la cotización concreta, se propone
@@ -350,6 +358,12 @@ observado, pendiente de confirmar.
 | GAOS | UUID en `/properties/<uuid>` | No verificada | HTTP 429 en acceso (2026-11-04); implementación pendiente de vía de acceso |
 | Mambbu | slug en `/propiedades/<slug>` | "Cargar más" [V] | HTTP 200 en acceso (2026-11-04), pero términos prohíben extracción automatizada sin autorización; implementación pendiente de autorización |
 | CasasOasis | No inspeccionado | No aplica | Excluida |
+
+> **Nota sobre la identificación de municipios:** la función de identificación
+> de municipios a partir de texto libre (`src/data/normalization.py`) tiene
+> cobertura limitada: no todos los anuncios tienen municipio asignado y los
+> tests asociados presentan fallos que requieren revisión. Los resultados
+> municipales deben interpretarse con cautela y no se presentan como definitivos.
 
 ---
 
