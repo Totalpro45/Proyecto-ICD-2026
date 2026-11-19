@@ -14,6 +14,9 @@ outputs/
 # Entornos virtuales
 .venv/
 
+# Configuración local de PyCharm
+.idea/
+
 # Variables de entorno y credenciales
 .env
 
