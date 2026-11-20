@@ -4,8 +4,9 @@
 **Caso de estudio:** La Habana
 **Fuentes iniciales:** Revolico, GAOS, Mambbu, CasasOasis
 **Fuentes candidatas a extracción:** Revolico, GAOS y Mambbu (sujetas a verificar
-condiciones de acceso y uso). CasasOasis queda **fuera** de la extracción
-automatizada mientras no haya autorización expresa.
+condiciones de acceso y uso). **CasasOasis:** datos disponibles, pero su
+integración aún no está implementada; se abordará después de la reestructuración
+y corrección de errores del proyecto.
 **Estado:** borrador; incluye resultados de la inspección técnica preliminar
 (sección 8) y el diseño del sistema de tasas de cambio (sección 11). No describe
 todavía ninguna implementación de scraping ni de consulta de tasas.
@@ -329,9 +330,12 @@ observado, pendiente de confirmar.
   `Go-http-client`, `node-fetch` y `HTTrack`; menciona defensas **ScrapeShield**
   y **Cloudflare** e incluye una ruta **honeypot**; permite buscadores y
   crawlers de IA declarados.
-- **Decisión:** queda **fuera de la extracción automatizada** mientras no
-  exista autorización expresa. No se accedió a su catálogo durante la
-  inspección.
+- **Decisión de la inspección preliminar:** quedó **fuera de la extracción
+  automatizada** mientras no existiera autorización expresa. No se accedió a su
+  catálogo durante la inspección.
+- **Situación actual:** sus datos están disponibles, pero su integración aún no
+  está implementada; se realizará después de la reestructuración y corrección de
+  errores del proyecto.
 
 ### 8.5 URLs consultadas
 
@@ -357,7 +361,7 @@ observado, pendiente de confirmar.
 | Revolico | id numérico en `/item/<slug>-<id>` | `?page=N` [V] | HTTP 403 en acceso (2026-11-04); implementación pendiente de vía de acceso |
 | GAOS | UUID en `/properties/<uuid>` | No verificada | HTTP 429 en acceso (2026-11-04); implementación pendiente de vía de acceso |
 | Mambbu | slug en `/propiedades/<slug>` | "Cargar más" [V] | HTTP 200 en acceso (2026-11-04), pero términos prohíben extracción automatizada sin autorización; implementación pendiente de autorización |
-| CasasOasis | No inspeccionado | No aplica | Excluida |
+| CasasOasis | No inspeccionado | No aplica | Inspección: excluida. Actual: datos disponibles; integración pendiente |
 
 > **Nota sobre la identificación de municipios:** la función de identificación
 > de municipios a partir de texto libre (`src/data/normalization.py`) tiene
@@ -388,7 +392,8 @@ observado, pendiente de confirmar.
 
 - **Candidatas a extracción:** Revolico, GAOS y Mambbu, **sujetas a verificar
   las condiciones de acceso y uso** antes de automatizar.
-- **Excluida:** CasasOasis, mientras no haya autorización expresa.
+- **CasasOasis:** datos disponibles; integración aún no implementada, prevista
+  después de la reestructuración y corrección de errores del proyecto.
 - **Resultado de pruebas de acceso (2026-11-04):**
   - **Revolico:** HTTP 403. No se obtuvo HTML ni se pudo inspeccionar
     `__NEXT_DATA__`.
@@ -401,9 +406,10 @@ observado, pendiente de confirmar.
 - `robots.txt` **no equivale por sí solo a una autorización de scraping**:
   debe revisarse además las condiciones de uso aplicables de cada portal.
 - No se deben evadir bloqueos, sistemas anti-bots ni restricciones de acceso.
-- Las tres fuentes (Revolico, GAOS y Mambbu) siguen siendo las fuentes objetivo
-  del proyecto. Su implementación queda pendiente de encontrar vías de acceso
-  adecuadas (autorización expresa, API oficial u otra vía legítima).
+- Las tres fuentes de extracción de esta fase (Revolico, GAOS y Mambbu) siguen
+  siendo las fuentes objetivo de la etapa actual del proyecto. Su implementación
+  queda pendiente de encontrar vías de acceso adecuadas (autorización expresa, API
+  oficial u otra vía legítima).
 
 ---
 

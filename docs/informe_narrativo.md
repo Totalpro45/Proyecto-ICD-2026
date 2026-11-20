@@ -78,7 +78,7 @@ Los anuncios utilizados provienen de dos portales inmobiliarios:
 - **GAOS** — portal con extracción implementada mediante el Edge Function de Supabase.
 - **Revolico** — portal con extracción implementada.
 
-Ambos portales presentan restricciones de acceso en pruebas de acceso directo, por lo que la recopilación de datos está sujeta a estas limitaciones técnicas. Mambbu y CasasOasis fueron identificadas como fuentes candidatas, pero no se utilizaron en el análisis actual: Mambbu por prohibición de extracción automatizada en sus términos de uso, y CasasOasis por exclusión deliberada mientras no exista autorización expresa.
+Ambos portales presentan restricciones de acceso en pruebas de acceso directo, por lo que la recopilación de datos está sujeta a estas limitaciones técnicas. Mambbu y CasasOasis fueron identificadas como fuentes candidatas, pero no se utilizaron en el análisis actual: Mambbu por prohibición de extracción automatizada en sus términos de uso, y CasasOasis porque sus datos aún no se han incorporado al conjunto de datos del análisis.
 
 #### 3.2 Proceso de recopilación y tratamiento
 
