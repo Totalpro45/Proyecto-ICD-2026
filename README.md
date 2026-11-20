@@ -31,7 +31,7 @@ Se han identificado los siguientes portales como posibles fuentes de anuncios:
 - **GAOS** — extracción implementada (`src/sources/gaos.py`).
 - **Revolico** — extracción implementada (`src/sources/revolico.py`).
 - **Mambbu** — fuente candidata; su extracción está **pendiente de autorización** según sus términos de uso (ver `docs/decisiones.md` §8.3 y §10).
-- **CasasOasis** — **excluida** de la extracción automatizada mientras no haya autorización expresa.
+- **CasasOasis** — datos disponibles; su integración se implementará cuando finalice la reestructuración y corrección de errores del proyecto.
 
 Cada portal se transforma a un **esquema de datos común** que permite
 consolidar y comparar la información (ver `docs/decisiones.md`).
@@ -102,7 +102,7 @@ pruebas funcionando y datos capturados de las fuentes implementadas.
 | Unificación de capturas | Implementado (`src/data/unificacion.py`) |
 | Extracción de anuncios | Implementado para GAOS y Revolico (`src/sources/gaos.py`, `src/sources/revolico.py`) |
 | Extracción de Mambbu | Pendiente (sujeta a autorización; ver `docs/decisiones.md` §8.3 y §10) |
-| CasasOasis | Excluida mientras no haya autorización expresa |
+| CasasOasis | Datos disponibles; integración prevista tras la reestructuración y corrección de errores del proyecto |
 | Sistema de tasas de cambio | Implementado (`src/exchange_rates/`) |
 | Automatización de elTOQUE | Implementada y ejecutada mediante GitHub Actions |
 | Identificación de municipios | Implementada (basada en texto; los tests de normalización presentan fallos que requieren revisión; cobertura limitada) |
@@ -255,5 +255,6 @@ los datos locales no se suben a GitHub.
   necesario para comprar una vivienda.
 - Revolico y GAOS presentan restricciones de acceso (HTTP 403 y 429
   respectivamente desde `requests`). Mambbu prohíbe la extracción automatizada
-  en sus términos de uso. CasasOasis queda excluida mientras no haya
-  autorización expresa. Consulte `docs/decisiones.md` §8 y §10 para detalles.
+  en sus términos de uso. CasasOasis dispone de datos, pero su integración se
+  abordará tras la reestructuración y corrección de errores del proyecto.
+  Consulte `docs/decisiones.md` §8 y §10 para detalles.
