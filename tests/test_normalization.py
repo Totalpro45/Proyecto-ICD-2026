@@ -768,7 +768,7 @@ def test_identificar_localidad_no_string_devuelve_none():
 
 def test_identificar_municipio_gaos_caso_a_guanabo_cerca_de_la_playa():
     """Caso A: Guanabo con 'cerca de la playa' debe ser La Habana del Este."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "casa independiente en guanabo cerca de la playa",
         "Guanabo, cerca de la playa",
     )
@@ -778,7 +778,7 @@ def test_identificar_municipio_gaos_caso_a_guanabo_cerca_de_la_playa():
 
 def test_identificar_municipio_gaos_caso_b_vedado_vs_playa():
     """Caso B: Vedado (Plaza de la Revolución) vs Playa es contradicción."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "Venta de apartamento en perfectas condiciones,en edificio capitalista en el Vedado en calle k",
         "Playa, La Habana",
     )
@@ -788,7 +788,7 @@ def test_identificar_municipio_gaos_caso_b_vedado_vs_playa():
 
 def test_identificar_municipio_gaos_localidad_coincide_con_direccion():
     """Localidad en título y su municipio en dirección: no hay contradicción."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "Apartamento en Vedado", "Plaza de la Revolución, La Habana"
     )
     assert municipio == "Plaza de la Revolución"
@@ -797,7 +797,7 @@ def test_identificar_municipio_gaos_localidad_coincide_con_direccion():
 
 def test_identificar_municipio_gaos_localidad_diferente_de_direccion():
     """Localidad en título y municipio diferente en dirección: contradicción."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "Casa en Guanabo", "Playa, La Habana"
     )
     assert municipio is None
@@ -806,17 +806,8 @@ def test_identificar_municipio_gaos_localidad_diferente_de_direccion():
 
 def test_identificar_municipio_gaos_solo_localidad():
     """Solo una localidad reconocida: se usa su municipio."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "Casa en Miramar", None
-    )
-    assert municipio == "Playa"
-    assert contradiccion is False
-
-
-def test_identificar_municipio_gaos_playa_legitima_titulo():
-    """Título con 'Playa' sin referencia geográfica se asigna al municipio."""
-    municipio, contradiccion = identificar_municipio_gaos(
-        "Casa en zona de Playa", None
     )
     assert municipio == "Playa"
     assert contradiccion is False
@@ -824,7 +815,7 @@ def test_identificar_municipio_gaos_playa_legitima_titulo():
 
 def test_identificar_municipio_gaos_playa_legitima_direccion():
     """Dirección con 'Playa' sin referencia geográfica se asigna al municipio."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         None, "Buenavista, Playa"
     )
     assert municipio == "Playa"
@@ -833,7 +824,7 @@ def test_identificar_municipio_gaos_playa_legitima_direccion():
 
 def test_identificar_municipio_gaos_playa_geografica_direccion_descartada():
     """Dirección con playa geográfica se descarta; el municipio del título se conserva."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "Casa en Centro Habana", "cerca de la playa"
     )
     assert municipio == "Centro Habana"
@@ -900,7 +891,7 @@ def test_identificar_municipio_revolico_none():
 
 def test_identificar_municipio_gaos_titulo_y_direccion_coinciden():
     """Título y dirección coinciden: se usa ese municipio."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "Casa en Playa", "Playa, La Habana"
     )
     assert municipio == "Playa"
@@ -909,7 +900,7 @@ def test_identificar_municipio_gaos_titulo_y_direccion_coinciden():
 
 def test_identificar_municipio_gaos_solo_titulo():
     """Solo el título identifica municipio."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "Casa en zona de Playa", None
     )
     assert municipio == "Playa"
@@ -918,7 +909,7 @@ def test_identificar_municipio_gaos_solo_titulo():
 
 def test_identificar_municipio_gaos_solo_direccion():
     """Solo la dirección identifica municipio."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         None, "Playa, La Habana"
     )
     assert municipio == "Playa"
@@ -927,7 +918,7 @@ def test_identificar_municipio_gaos_solo_direccion():
 
 def test_identificar_municipio_gaos_contradiccion():
     """Título y dirección indican municipios diferentes: None y contradicción."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "Casa en Centro Habana", "Playa, La Habana"
     )
     assert municipio is None
@@ -936,7 +927,7 @@ def test_identificar_municipio_gaos_contradiccion():
 
 def test_identificar_municipio_gaos_sin_identificacion():
     """Ninguno identifica municipio: None."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "Casa en venta", "Calle 23"
     )
     assert municipio is None
@@ -944,12 +935,30 @@ def test_identificar_municipio_gaos_sin_identificacion():
 
 
 def test_identificar_municipio_gaos_none_argumentos():
-    assert identificar_municipio_gaos(None, None) == (None, False)
+    assert identificar_municipio_gaos(None, None) == (
+        None,
+        False,
+        "gaos",
+        "mercado_informal",
+    )
+
+
+def test_identificar_municipio_gaos_devuelve_metadatos_de_fuente():
+    """La función devuelve siempre la fuente y la categoría del mercado."""
+    assert identificar_municipio_gaos("Casa en zona de Playa", None) == (
+        "Playa",
+        False,
+        "gaos",
+        "mercado_informal",
+    )
+    assert identificar_municipio_gaos(
+        "Casa en Centro Habana", "Playa, La Habana"
+    ) == (None, True, "gaos", "mercado_informal")
 
 
 def test_identificar_municipio_gaos_playa_geografica_titulo_devuelve_none():
     """Título con playa geográfica y localidad Guanabo: se resuelve a La Habana del Este."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "Venta de apartamento en Guanabo,a 7 cuadras de la playa aproximadamente",
         "Peñas Altas, La Habana",
     )
@@ -959,7 +968,7 @@ def test_identificar_municipio_gaos_playa_geografica_titulo_devuelve_none():
 
 def test_identificar_municipio_gaos_playa_geografica_direccion_valida():
     """Título con Guanabo (La Habana del Este) contradice con dirección Playa."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "Venta de apartamento en Guanabo,a 7 cuadras de la playa aproximadamente",
         "Playa, La Habana",
     )
@@ -969,7 +978,7 @@ def test_identificar_municipio_gaos_playa_geografica_direccion_valida():
 
 def test_identificar_municipio_gaos_playa_legitima_titulo():
     """Título con 'Playa' sin referencia a playa geográfica se asigna."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "Casa en zona de Playa", None
     )
     assert municipio == "Playa"
@@ -978,7 +987,7 @@ def test_identificar_municipio_gaos_playa_legitima_titulo():
 
 def test_identificar_municipio_gaos_playa_geografica_sin_direccion_devuelve_none():
     """Solo título con playa geográfica, sin dirección: None."""
-    municipio, contradiccion = identificar_municipio_gaos(
+    municipio, contradiccion, _, _ = identificar_municipio_gaos(
         "7 cuadras de la playa aproximadamente", None
     )
     assert municipio is None
