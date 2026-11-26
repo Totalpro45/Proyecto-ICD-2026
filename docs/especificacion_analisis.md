@@ -54,19 +54,22 @@ Convención de estado de cada variable:
 
 | Insumo | Estado | Comentario |
 |---|---|---|
-| Tabla de tasas de cambio (fuente y fecha) | (pendiente) | `docs/decisiones.md` §2 y §6.1. Sin ella, `precio_usd` y `precio_m2_usd` quedan `null`. |
-| Serie de salario mínimo | (externo) | Resolución 14 (Gaceta Oficial n.º 60 ordinaria de 2026); se incorporará como tabla de referencia. |
-| Escalas salariales por oficio | (externo) | Resolución 14; requiere decidir cómo se mapean a los anuncios (que no tienen oficio). |
-| Salario medio | (externo) | Resolución 14; es un valor de referencia único o por período, no por anuncio. |
+| Tabla de tasas de cambio (fuente y fecha) | (disponible) | Historial implementado en `data/raw/exchange_rates/historial_tasas.json` con elTOQUE y BCC. Falta elegir la tasa de referencia del análisis (`docs/decisiones.md` §6.1); por eso `precio_usd` y `precio_m2_usd` siguen `null` en el unificado actual. |
+| Salario mínimo legal | (externo) | 3.210 CUP mensuales (Resolución 14/2026, Gaceta Oficial Ordinaria n.º 60 de 2026, vigente desde el 1/7/2026). Es el referente que usa el análisis actual; no proviene de los anuncios. |
+| Escalas salariales y pagos adicionales | (externo) | Resolución 15/2026 y resoluciones sectoriales; archivos en `data/reference/salarios/` (`escala_general.csv`, `cargos_sectoriales.csv`, `pagos_adicionales.csv`). Están disponibles, pero el análisis actual no los utiliza: mapearlos a los anuncios requeriría un oficio que los anuncios no tienen. |
+| Salario medio nacional | (no disponible) | No hay una fuente documentada en las fuentes consultadas. El análisis no lo utiliza; la Resolución 14/2026 se usa para el salario mínimo, no como fuente de salario medio. |
 | Series demográficas 2011–2024 | (externo) | Anuario Estadístico de Cuba 2024. |
 | Contexto monetario (Decreto-Ley 17 de 2020) | (externo) | Contexto interpretativo, no una variable del dataset. |
 | Lista canónica de municipios de La Habana | (pendiente) | `docs/decisiones.md` §6.3. Necesaria para agrupar por municipio. |
 | Criterio de `area_m2` (total / construcción / parcela) | (pendiente) | `docs/decisiones.md` §6.4. Afecta el precio por m². |
 
+`(no disponible)` indica que el insumo no consta en las fuentes consultadas; no
+se estima ni se sustituye por otro referente.
+
 **Principio de alcance:** los análisis que dependan de una variable hoy
-mayormente ausente (p. ej. `area_m2` o la tasa de cambio) se calcularán **solo
-sobre el subconjunto que la tenga**, reportando siempre el tamaño de ese
-subconjunto, y se abstendrán de extrapolar al total.
+mayormente ausente (p. ej. `area_m2` o la tasa de referencia aplicada a los
+anuncios) se calcularán **solo sobre el subconjunto que la tenga**, reportando
+siempre el tamaño de ese subconjunto, y se abstendrán de extrapolar al total.
 
 ---
 
@@ -155,13 +158,16 @@ publica la estadística en `precio_usd`.
 **Objetivo:** expresar el precio de la vivienda en términos de cuánto representa
 frente a distintos referentes salariales, **sin** confundirlos entre sí.
 
-Tres referentes, que **no** son intercambiables:
+Referentes distintos, que **no** son intercambiables:
 
-1. **Salario mínimo** (externo, Resolución 14): piso legal de ingresos.
-2. **Escalas salariales por oficio** (externo, Resolución 14): remuneración
-   asociada a ocupaciones concretas.
-3. **Salario medio** (externo, Resolución 14): referente agregado único o por
-   período.
+1. **Salario mínimo legal** (externo, Resolución 14/2026): piso legal de
+   ingresos; es el referente que usa el análisis actual (3.210 CUP mensuales).
+2. **Escalas salariales y pagos adicionales** (externo, Resolución 15/2026 y
+   resoluciones sectoriales): remuneración asociada a ocupaciones concretas;
+   están disponibles en `data/reference/salarios/`, pero el análisis actual no
+   los utiliza.
+3. **Salario medio nacional** (no disponible): no hay una fuente documentada en
+   las fuentes consultadas; el análisis no lo utiliza.
 
 **Cómo se relacionan con los anuncios:**
 
@@ -169,18 +175,18 @@ Tres referentes, que **no** son intercambiables:
   **tablas de referencia externas** (por escala/ocupación y por período), no
   campo a campo.
 - Los salarios se expresan en la moneda en que los publique la fuente (con toda
-  probabilidad CUP, a confirmar al leer la Resolución 14). Para compararlos con
-  `precio_usd` hace falta la **tasa de conversión documentada** (decisión
-  pendiente §9). Sin tasa, la comparación queda **en CUP** contra precios en CUP
-  y se declara que no cubre el resto de anuncios.
+  probabilidad CUP, a confirmar al leer las resoluciones correspondientes). Para
+  compararlos con `precio_usd` hace falta la **tasa de conversión documentada**
+  (decisión pendiente §9). Sin tasa, la comparación queda **en CUP** contra
+  precios en CUP y se declara que no cubre el resto de anuncios.
 - Indicadores propuestos (todos afectados por la decisión de tasa):
   - **Años de salario** = precio (mediana del inmueble típico) ÷ (salario de
     referencia × 12), indicando qué salario se usó.
   - **Meses de salario** para la misma relación.
   - **Índice precio/salario** comparando la mediana de precio por municipio con
     cada referente salarial.
-- Se presentan **los tres referentes por separado**; no se promedian ni se
-  elige uno como "el" salario del cubano sin justificarlo.
+- Se presentan **los referentes disponibles por separado**; no se promedian ni
+  se elige uno como "el" salario del cubano sin justificarlo.
 
 **Interpretación de los indicadores:** estos indicadores representan
 equivalencias matemáticas entre el precio anunciado y el salario de referencia.
@@ -191,8 +197,8 @@ consideran gastos de vida, ahorro, financiación ni otras fuentes de ingresos.
 ingresos informales, remesas ni pluriempleo; el salario de referencia puede ser
 nacional y no de La Habana; y los precios son anunciados, no transados.
 
-**Pendientes:** fuente exacta dentro de la Resolución 14 para cada referente, el
-período de vigencia y cómo se alinean temporalmente con la captura de anuncios.
+**Pendientes:** fuente exacta y período de vigencia de cada referente salarial
+disponible, y cómo se alinean temporalmente con la captura de anuncios.
 
 ---
 
@@ -371,11 +377,17 @@ interpretar resultados.
 Recogidas también en `docs/decisiones.md` §6; se listan aquí por su impacto en el
 análisis:
 
-1. **Fuente y metodología de la tasa de cambio** a USD (oficial vs. informal) y
-   su fecha de vigencia: bloquea `precio_usd`, el precio por m² en USD y toda
-   comparación con salarios en USD.
-2. **Referente salarial exacto** dentro de la Resolución 14, su período, y cómo
-   se presentan los tres referentes (mínimo, escalas por oficio, medio).
+1. **Tasa de referencia del análisis** a USD (oficial, informal o ambas por
+   separado) y su fecha de vigencia: el historial de elTOQUE y BCC está
+   implementado y disponible, pero mientras no se elija la referencia,
+   `precio_usd`, el precio por m² en USD y la comparación con salarios en USD
+   quedan condicionados.
+2. **Referente salarial del análisis** y su período. El análisis actual usa el
+   salario mínimo legal de 3.210 CUP (Resolución 14/2026); las escalas
+   salariales y los pagos adicionales (Resolución 15/2026 y resoluciones
+   sectoriales) están disponibles, pero no se utilizan, y el salario medio
+   nacional no cuenta con una fuente documentada. No se presentan como si el
+   análisis combinara varios referentes.
 3. **Lista canónica de municipios** de La Habana y reglas de mapeo desde texto
    libre.
 4. **Criterio de `area_m2`** (total / construcción / parcela).
@@ -409,8 +421,11 @@ resuelto aquí):
 6. **Volumen y finalidad:** al ser un trabajo académico, limitar el volumen y no
    redistribuir datos personales ni el contenido íntegro de los anuncios.
 
-Mientras estos puntos no estén resueltos, la extracción de Revolico **no** se
-automatiza.
+El extractor de Revolico está implementado (`src/sources/revolico.py`), pero
+estos requisitos siguen vigentes: la implementación **no** demuestra
+autorización legal. Mientras no estén resueltos, la extracción no debe
+presentarse como autorizada y no se garantiza que el acceso automatizado
+funcione siempre.
 
 ---
 

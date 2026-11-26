@@ -7,9 +7,13 @@
 condiciones de acceso y uso). **CasasOasis:** datos disponibles, pero su
 integración aún no está implementada; se abordará después de la reestructuración
 y corrección de errores del proyecto.
-**Estado:** borrador; incluye resultados de la inspección técnica preliminar
-(sección 8) y el diseño del sistema de tasas de cambio (sección 11). No describe
-todavía ninguna implementación de scraping ni de consulta de tasas.
+**Estado:** borrador; recoge decisiones de diseño y criterios, algunos ya
+aplicados en componentes implementados (extractores de GAOS y Revolico,
+almacenamiento y unificación de capturas de anuncios, y consulta y registro de
+tasas de cambio). No describe por completo la implementación ni el estado final
+del proyecto: quedan aspectos pendientes y limitaciones documentadas, como la
+autorización de Mambbu, la integración de CasasOasis y las restricciones de
+acceso de los portales.
 
 Este documento define el **esquema de datos común** al que se transformarán los
 anuncios de las fuentes, junto con las políticas de moneda, datos personales,
@@ -83,19 +87,45 @@ Convenciones:
 > esquema para cuando exista una tasa de cambio documentada y justificable;
 > hasta entonces, los precios se conservan únicamente en su moneda original.
 
+**Validación del precio al guardar.** Antes de escribir una captura,
+`guardar_captura_completa()` valida el lote completo con `_crudos_validos()`.
+El campo de precio depende de la fuente (`CAMPOS_PRECIO_CRUDO`: `dcprice` para
+GAOS y `precio` para Revolico); una fuente no registrada cae en `precio`. Se
+rechaza el lote —no se guarda nada y la función devuelve `None`— si algún crudo
+no incluye ese campo o si su valor no es numérico. Se aceptan enteros, decimales
+y cadenas convertibles a `float`; se rechazan booleanos, cadenas vacías o no
+numéricas, listas y diccionarios. Un `null` explícito se acepta como precio
+desconocido, igual que en el esquema común. La validación no exige que el valor
+sea positivo ni comprueba la moneda.
+
+`guardar_captura()` es una función de nivel inferior que recibe anuncios ya
+mapeados y **no** aplica esta validación. Los flujos de los extractores
+(`capturar_y_guardar`, `capturar_y_guardar_revolico` y
+`ampliar_captura_controlada`) usan `guardar_captura_completa()`.
+
 #### 1.4.1 Trazabilidad de la conversión
 
-Para que `precio_usd` sea reproducible hasta la cotización concreta, se propone
-añadir **un solo campo**, sin eliminar los existentes:
+Para que `precio_usd` pueda ser reproducible hasta la cotización concreta, el
+esquema define **un solo campo adicional**, sin eliminar los existentes:
 
 | Campo | Tipo | Obligatorio | Descripción |
 |---|---|---|---|
-| `tasa_id` | UUID | no | `id` de la cotización aplicada (ver sección 11 y `docs/sistema_tasas_cambio.md`). `null` si no hubo conversión. |
+| `tasa_id` | texto | no | Referencia al `id` de la cotización aplicada (ver sección 11 y `docs/sistema_tasas_cambio.md`). Se guarda como texto libre: no se valida el formato UUID. `null` si no hubo conversión. |
+
+**Estado de implementación:** el campo ya existe en el modelo
+(`AnuncioInmobiliario.tasa_id`), en el mapeo y en los archivos procesados, y se
+serializa con valor `null` por defecto. El modelo lo declara como texto opcional
+(`Optional[str]`) y no valida que sea un UUID. Ningún flujo aplica todavía
+conversiones a USD, así que ningún registro lo rellena: los extractores y el
+mapeo lo inicializan en `null`. Su presencia no garantiza por sí sola la
+trazabilidad mientras no exista una conversión que lo asigne.
 
 **Justificación:** `tasa_conversion_usd`, `tasa_fecha` y `tasa_fuente` permiten
 leer una conversión, pero no identifican de forma única la cotización usada. Con
-`tasa_id` se recuperan del historial la categoría, la modalidad, el segmento y
-las fechas exactas, sin duplicar esos datos en cada anuncio. El campo se incorpora al esquema para garantizar la trazabilidad de las conversiones.
+`tasa_id` se pueden recuperar del historial la categoría, la modalidad, el
+segmento y las fechas exactas, sin duplicar esos datos en cada anuncio. El
+almacenamiento de anuncios no comprueba que el UUID exista en el historial de
+tasas ni que corresponda a la conversión aplicada.
 
 ### 1.5 Texto descriptivo
 
@@ -158,13 +188,34 @@ las fechas exactas, sin duplicar esos datos en cada anuncio. El campo se incorpo
 
 ## 4. Política de datos personales
 
-- **No** se almacenan teléfonos, nombres completos, correos, ni cualquier otro
-  dato personal de los anunciantes.
+- **No** se almacenan deliberadamente teléfonos, nombres completos, correos ni
+  otros datos de contacto de los anunciantes. El saneamiento reconoce patrones
+  concretos (teléfonos, enlaces y esquemas de WhatsApp, correos, instrucciones
+  de contacto y presentaciones personales como «my name is …», «me llamo …» o
+  «mi nombre es …»). **No es un detector exhaustivo**: pueden persistir nombres
+  autodeclarados en formas no contempladas (por ejemplo, una firma suelta sin
+  verbo de presentación) y otras formas de identificación como apodos, perfiles
+  o direcciones exactas. El saneamiento reduce el riesgo, pero no garantiza que
+  un archivo quede libre de cualquier dato personal. En particular, las
+  presentaciones con iniciales (por ejemplo, «my name is J. …») pueden quedar
+  parcialmente saneadas: se elimina la frase de presentación, pero el apellido
+  puede permanecer, porque el punto de la inicial no se atraviesa para no
+  borrar la primera palabra de la oración siguiente.
 - Solo se conserva `vendedor_tipo` (`particular` / `agencia` / `desconocido`)
   cuando sea razonablemente identificable.
-- Si durante el parseo aparece información personal, debe descartarse antes de
-  guardar. Los datos crudos con información personal no se publican ni se
-  versionan (ya excluidos por `.gitignore` en `data/`).
+- Si aparece información de contacto, se descarta antes de guardar. El
+  saneamiento cubre `titulo`, `descripcion`, `direccion_texto` y
+  `notas_calidad` del anuncio procesado, los campos de texto conocidos del
+  crudo y los subcampos personales de `publisher` (`name`, `phone`, `avatarUrl`,
+  `slug`). Si un texto queda sin contenido útil, se guarda como `null`; si no
+  contenía contacto, se conserva sin cambios. En las presentaciones personales
+  se elimina la frase completa con el nombre y se conserva el resto del texto
+  (por ejemplo, el precio o las características que vienen después). Los
+  objetos originales no se modifican.
+- Los datos crudos con información personal no se publican ni se versionan: la
+  mayor parte de `data/` está excluida por `.gitignore` y las excepciones
+  versionadas se limitan al historial de tasas, al unificado de anuncios
+  saneado y a los tres CSV de referencia salarial (ver §9 y §11.2).
 
 ---
 
@@ -358,16 +409,21 @@ observado, pendiente de confirmar.
 
 | Fuente | Identificador | Paginación conocida | Estado |
 |---|---|---|---|
-| Revolico | id numérico en `/item/<slug>-<id>` | `?page=N` [V] | HTTP 403 en acceso (2026-11-04); implementación pendiente de vía de acceso |
-| GAOS | UUID en `/properties/<uuid>` | No verificada | HTTP 429 en acceso (2026-11-04); implementación pendiente de vía de acceso |
+| Revolico | id numérico en `/item/<slug>-<id>` | `?page=N` [V] | Extractor implementado (`src/sources/revolico.py`); acceso restringido (HTTP 403 el 2026-11-04) y sin autorización legal demostrada |
+| GAOS | UUID en `/properties/<uuid>` | No verificada | Extractor implementado (`src/sources/gaos.py`); acceso restringido (HTTP 429 el 2026-11-04) y sin autorización legal demostrada |
 | Mambbu | slug en `/propiedades/<slug>` | "Cargar más" [V] | HTTP 200 en acceso (2026-11-04), pero términos prohíben extracción automatizada sin autorización; implementación pendiente de autorización |
 | CasasOasis | No inspeccionado | No aplica | Inspección: excluida. Actual: datos disponibles; integración pendiente |
 
 > **Nota sobre la identificación de municipios:** la función de identificación
 > de municipios a partir de texto libre (`src/data/normalization.py`) tiene
-> cobertura limitada: no todos los anuncios tienen municipio asignado y los
-> tests asociados presentan fallos que requieren revisión. Los resultados
-> municipales deben interpretarse con cautela y no se presentan como definitivos.
+> cobertura limitada: no todos los anuncios tienen municipio asignado. Las 190
+> pruebas de `tests/test_normalization.py` pasan actualmente; cubren
+> normalización de moneda, tipo de inmueble, tipo de operación, área, estado de
+> conservación, amueblado, fecha y precio, además de la identificación de
+> municipios y localidades (incluidos casos ambiguos y referencias geográficas a
+> «la playa»). Que pasen no valida todos los casos posibles ni el sistema
+> completo: los resultados municipales siguen debiendo interpretarse con cautela
+> y no se presentan como definitivos.
 
 ---
 
@@ -375,14 +431,33 @@ observado, pendiente de confirmar.
 
 1. **No** recopilar deliberadamente contactos personales: teléfonos, WhatsApp,
    correos, nombres completos ni cualquier otro dato identificativo.
-2. Las fichas de los portales **sí contienen** datos personales; el parser debe
-   descartarlos. Solo se conserva `vendedor_tipo` cuando sea razonablemente
+2. Las fichas de los portales **sí contienen** datos personales. El saneamiento
+   se aplica antes de guardar cada captura (`sanitizar_crudo()` y
+   `sanitizar_anuncio_procesado()` en `src/data/privacidad.py`), no en el
+   parser. Limpia los campos de texto conocidos del crudo (`titulo`,
+   `descripcion`, `direccion_texto`, `notas_calidad`, `vctitle`, `vcaddress`,
+   `sdescription_eng`, `sdescription_ita`, `stittle_eng`, `stittle_ita` y
+   `gem_reason`), los cuatro campos de texto del anuncio procesado (`titulo`,
+   `descripcion`, `direccion_texto`, `notas_calidad`), las entradas de texto de
+   `features` y los subcampos `name`, `phone`, `avatarUrl` y `slug` de
+   `publisher`. Solo se conserva `vendedor_tipo` cuando sea razonablemente
    identificable.
 3. **Evitar conservar HTML sin filtrar** cuando incluya datos personales. Si se
    guarda el HTML crudo para auditoría, debe redactarse o someterse a una
-   política de retención definida.
-4. **No publicar ni versionar** datos personales. El directorio `data/` ya está
-   excluido por `.gitignore`.
+   política de retención definida. Las capturas actuales se guardan como JSON,
+   no como HTML.
+4. **No publicar ni versionar** datos personales. La mayor parte de `data/` está
+   excluida por `.gitignore`; las únicas excepciones versionadas son el historial
+   de tasas, el archivo unificado de anuncios saneado y los tres CSV de
+   referencia salarial. La prueba `tests/test_privacidad_datos_versionados.py`
+   revisa los JSON rastreados por Git y los no ignorados (incluidos los que aún
+   no tienen seguimiento) y falla si encuentra contacto en campos de texto, en
+   los subcampos personales de `publisher` o en `features`. No es un hook de
+   Git: la protección depende de ejecutar la suite o de conectarla a un
+   hook/CI. Tampoco revisa archivos ignorados (por ejemplo, capturas locales en
+   `data/raw/`) ni CSV, y solo detecta los patrones que reconoce el módulo; no
+   se afirma que todas las capturas históricas o locales estén libres de datos
+   personales.
 5. No eludir CAPTCHA ni autenticación, y no realizar peticiones masivas;
    aplicar un `Crawl-delay` conservador y un `User-Agent` identificable.
 
@@ -390,8 +465,11 @@ observado, pendiente de confirmar.
 
 ## 10. Estado de las fuentes
 
-- **Candidatas a extracción:** Revolico, GAOS y Mambbu, **sujetas a verificar
-  las condiciones de acceso y uso** antes de automatizar.
+- **Fuentes objetivo:** Revolico, GAOS y Mambbu. GAOS y Revolico cuentan con
+  extractor implementado (`src/sources/gaos.py`, `src/sources/revolico.py`);
+  Mambbu sigue pendiente de autorización. En los tres casos deben revisarse las
+  condiciones de acceso y uso, y la existencia de un extractor **no** demuestra
+  autorización legal.
 - **CasasOasis:** datos disponibles; integración aún no implementada, prevista
   después de la reestructuración y corrección de errores del proyecto.
 - **Resultado de pruebas de acceso (2026-11-04):**
@@ -406,10 +484,11 @@ observado, pendiente de confirmar.
 - `robots.txt` **no equivale por sí solo a una autorización de scraping**:
   debe revisarse además las condiciones de uso aplicables de cada portal.
 - No se deben evadir bloqueos, sistemas anti-bots ni restricciones de acceso.
-- Las tres fuentes de extracción de esta fase (Revolico, GAOS y Mambbu) siguen
-  siendo las fuentes objetivo de la etapa actual del proyecto. Su implementación
-  queda pendiente de encontrar vías de acceso adecuadas (autorización expresa, API
-  oficial u otra vía legítima).
+- GAOS y Revolico están implementados, pero su acceso automatizado no está
+  garantizado: las pruebas de acceso registradas muestran restricciones (HTTP 403
+  y 429) y las condiciones de uso deben seguir revisándose. Mambbu continúa
+  pendiente de autorización. No se presentan estas fuentes como plenamente
+  autorizadas.
 
 ---
 
@@ -426,7 +505,7 @@ este proyecto.
 
 | Fuente | `fuente` | Qué es | Qué aporta |
 |---|---|---|---|
-| ElToque | `eltoque` | Medio de prensa. **No es una institución oficial.** | Información sobre el mercado informal (la categoría se asigna por cotización). |
+| ElToque | `eltoque` | Medio de prensa. **No es una institución oficial.** | Información sobre el mercado informal (en la implementación actual, el extractor la registra como `mercado_informal`). |
 | Banco Central de Cuba (BCC) | `bcc` | Banco central. **Institución oficial.** | Tasas oficiales. |
 
 Página de referencia del BCC: `https://www.bc.gob.cu/tasas-de-cambio`.
@@ -437,10 +516,13 @@ Página de referencia del BCC: `https://www.bc.gob.cu/tasas-de-cambio`.
   que se consulta es el Banco Central de Cuba y su identificador es `bcc`.
 - `fuente` y `categoria` son dimensiones distintas. `fuente` indica **quién
   publica**; `categoria` indica el **tipo de mercado** (`oficial` o
-  `mercado_informal`) y se asigna **por cotización**, no por la página. Si
-  ElToque publica una tasa que corresponde al mercado oficial, se registra como
-  `oficial`. Si no se puede determinar la categoría, la cotización no se
-  registra como válida y se documenta una incidencia.
+  `mercado_informal`) y el criterio previsto es asignarla **por cotización**,
+  no por la página. En la implementación actual, el extractor de ElToque fija
+  `mercado_informal` y el del BCC fija `oficial`; no hay un caso de «categoría
+  indeterminable». Si una cotización no declara una `fuente` o `categoria`
+  admitidas, o combina ambas de forma no admitida, `registrar_cotizaciones()`
+  rechaza el lote completo con `ValueError` y no crea una incidencia por ese
+  motivo.
 - No se asume que cada fuente publique una única tasa: se registran por separado
   `moneda_origen`, `moneda_destino`, `tipo_tasa` (modalidad) y `segmento` cuando
   la fuente los distinga. Esto es especialmente relevante en el BCC, que puede
@@ -455,9 +537,11 @@ Página de referencia del BCC: `https://www.bc.gob.cu/tasas-de-cambio`.
 
 - Archivo único: `data/raw/exchange_rates/historial_tasas.json`.
 - Historial **append-only**: nunca se sobrescriben ni eliminan registros.
-- El archivo queda bajo `data/raw/`, ya excluido por `.gitignore`; los datos no
-  se versionan, el esquema sí.
-- La carpeta no se crea en esta fase.
+- El historial **sí se versiona**: `.gitignore` lo excluye con una excepción
+  explícita. No toda la carpeta `data/` se versiona; las excepciones son este
+  historial, el unificado de anuncios saneado y los tres CSV de referencia
+  salarial. El resto de los datos locales sigue excluido.
+- La carpeta `data/raw/exchange_rates/` se crea durante la captura si no existe.
 
 Estructura de nivel superior:
 
@@ -491,20 +575,38 @@ registros y, si se guardaran aparte, podrían quedar desincronizados.
   `fuente`, `categoria`, `fecha_captura`, `tipo`, `descripcion`, `estado`,
   `url_fuente` y `detalle_tecnico`. **Nunca es una tasa.**
 
-`estado` de una cotización admite `valida` o `sospechosa`. Las cotizaciones que
-no superan la validación **no** entran en `cotizaciones`: se registran como
-incidencia de tipo `validacion`.
+**Registros históricos sin procedencia.** De las 41 cotizaciones actuales,
+26 no tienen `fuente` ni `categoria`: son capturas antiguas realizadas antes de
+que el extractor guardara esos metadatos. Esos valores se conservan como `null`
+y no se completan por inferencia: no hay prueba directa de procedencia a nivel
+de cotización. `listar_cotizaciones()` no los asigna a ninguna procedencia; sin
+filtros devuelve el historial completo y, al filtrar por `fuente` o `categoria`,
+exige igualdad exacta, así que estos registros solo aparecen en consultas
+generales. Se mantienen en el historial y no se eliminan por carecer de esos
+metadatos.
+
+`estado` de una cotización es `valida` o `sospechosa` por convención (el
+registro no comprueba ese valor). No existe una validación de datos que
+descarte cotizaciones creando una incidencia: los extractores **omiten en
+silencio** las de moneda no rastreada o `valor` nulo, no numérico o ≤ 0, y
+`registrar_cotizaciones()` rechaza el lote completo con `ValueError` si la
+procedencia no es válida, sin crear una incidencia. Las incidencias las
+registra `capturar.py` ante fallos de la fuente —autenticación de elTOQUE,
+errores de conexión, errores HTTP de elTOQUE o del BCC y errores de estructura
+de la respuesta del BCC—, no por cada cotización descartada. elTOQUE no tiene
+un control equivalente: si su respuesta no es un objeto JSON, el extractor
+falla con un `AttributeError` no capturado y no se registra incidencia.
 
 **Todo identificador es un UUID.** Se descartaron campos técnicos como
 `hash_contenido`, `metodo_extraccion`, `unidad_original`,
 `fecha_publicacion_texto` y `notas` porque no aportaban una utilidad clara a
-este proyecto (ver la justificación en `docs/sistema_tasas_cambio.md` §5.3).
+este proyecto (ver la justificación en `docs/sistema_tasas_cambio.md` §5.4).
 
 ### 11.4 Reglas de actualización diaria
 
 1. Frecuencia **diaria**.
 2. No se sobrescribe: cada ejecución añade registros.
-3. 3. **Conservar las capturas:** cada cotización nueva registra su
+3. **Conservar las capturas:** cada cotización nueva registra su
    `fecha_captura`. Si la fuente repite una cotización sin cambios y no hay
    información que permita identificarla como una observación nueva, se
    registra la consulta en `actualizaciones`, sin duplicar la cotización.
@@ -521,17 +623,26 @@ este proyecto (ver la justificación en `docs/sistema_tasas_cambio.md` §5.3).
 
 ### 11.5 Validación y sospecha
 
-Se **rechaza** una cotización si: `valor` es nulo, no numérico o ≤ 0; faltan o
-son ambiguas las monedas; ambas monedas son iguales; falta o es inválida
-`fecha_captura`; faltan `fuente`, `categoria`, `tipo_tasa` o `url_fuente`; no se
-puede determinar la categoría (`oficial` o `mercado_informal`) a partir de lo
-que publica la fuente; no se puede asociar a una actualización; es un duplicado
-exacto; o está marcada como sospechosa sin `motivo_sospecha`.
+Se **rechaza** un lote en `registrar_cotizaciones()` —lanza `ValueError` y no
+escribe nada— si alguna cotización no es un diccionario, no declara `fuente` o
+`categoria` válidas, o combina una fuente y una categoría que no corresponden.
+Es la única validación de registro: no se comprueban `valor`, las monedas,
+`fecha_captura`, `tipo_tasa` ni `url_fuente`.
+
+Las cotizaciones con moneda no rastreada o con `valor` nulo, no numérico o ≤ 0
+se **omiten** antes, en la extracción, sin incidencia (ver §11.1 de
+`docs/sistema_tasas_cambio.md`).
+
+Un duplicado exacto **no** es un error de validación: no se añade y se
+contabiliza como `duplicados_omitidos` (si había fechas) o `sin_novedad` (si no
+las había), sin incidencia ni excepción (ver la sección 12 de
+`docs/sistema_tasas_cambio.md`).
 
 Se **conserva como sospechosa** una cotización con una anomalía que no impide
-registrar el dato pero desaconseja usarlo por defecto. En ese caso se exige
-`motivo_sospecha`, se excluye de las consultas normales y se puede recuperar en
-el historial.
+registrar el dato pero desaconseja usarlo por defecto. La convención es que
+`estado = "sospechosa"` y que `motivo_sospecha` explique la razón;
+`registrar_cotizaciones()` no comprueba esa combinación ni rechaza una
+cotización sospechosa sin motivo. Se puede recuperar en el historial.
 
 **No** se marca como sospechosa una cotización **solo** porque su valor sea muy
 distinto al anterior: una variación grande puede ser real. No se inventan
@@ -542,12 +653,35 @@ Reglas generales: no se imputan valores; la ausencia de cotización **no** es
 se convierte una moneda sin tasa documentada; no se confunden
 `fecha_publicacion`, `fecha_vigencia` y `fecha_captura`.
 
-**Duplicados sin fecha de publicación:** si la fuente no declara
-`fecha_publicacion` ni `fecha_vigencia`, se compara con la última cotización
-guardada de la misma clave. Si el valor es idéntico, no se añade una cotización
-nueva y la ejecución se registra como `sin_novedad`; si cambia, se guarda con su
-`fecha_captura`. Es una limitación asumida: sin fecha no se puede distinguir
-"no hay tasa nueva" de "la fuente repitió el mismo valor".
+**Deduplicación.** La clave de una cotización es `(fuente, categoria,
+moneda_origen, moneda_destino, tipo_tasa, segmento)`; un campo ausente cuenta
+como `null` y forma parte de la clave, no es un comodín. Para cada cotización
+nueva, `registrar_cotizaciones()` busca la cotización existente más reciente con
+esa misma clave comparando `fecha_captura` como texto, no por la posición en la
+lista. Una `fecha_captura` ausente se trata como cadena vacía (nunca supera a
+una fecha presente); si hay empate, se conserva la última que aparece en el
+historial.
+
+Con la cotización encontrada:
+
+- Si coincide en `fuente`, `categoria`, `tipo_tasa`, `segmento`,
+  `moneda_origen`, `moneda_destino`, `fecha_publicacion`, `fecha_vigencia` y
+  `valor_texto_original`, es un duplicado exacto y no se añade. Se registra como
+  `sin_novedad` si ambas carecen de `fecha_publicacion` y `fecha_vigencia`; en
+  caso contrario, como `duplicados_omitidos`. No se comparan `valor`,
+  `fecha_captura` ni `url_fuente`.
+- Si no es idéntica y ambas carecen de `fecha_publicacion` y `fecha_vigencia`,
+  se compara `valor_texto_original` (no el campo numérico `valor`): si coincide,
+  no se añade y se registra como `sin_novedad`; si cambia, se guarda como nueva
+  cotización.
+- Si hay fechas y no es idéntica, se guarda como nueva cotización.
+
+La comparación de fechas es lexicográfica sobre el texto de `fecha_captura`, así
+que asume un formato y una zona horaria uniformes en todo el historial. Sin
+fecha no se puede distinguir "no hay tasa nueva" de "la fuente repitió el mismo
+valor": es una limitación asumida. Los registros históricos con `fuente` o
+`categoria` en `null` conservan su clave y no se comparan con las cotizaciones
+nuevas, que siempre declaran procedencia.
 
 ### 11.6 Consultas
 
@@ -558,16 +692,36 @@ mezcla** ElToque con BCC ni tasas oficiales con informales. Tampoco se calculan
 promedios ni agregados entre fuentes; la comparación, si se hace, es explícita y
 posterior.
 
-| Consulta | Qué devuelve |
-|---|---|
-| **Última capturada** (por defecto) | Cotización válida más reciente por `fecha_captura`. Si no hay ninguna, `null`. |
-| **Última vigente** | La de la cotización válida más reciente, solo si declara `fecha_vigencia` aplicable. Si no la declara, "no determinable"; no se recurre a una tasa antigua. |
-| **Historial** | Todas las cotizaciones de la clave, incluidas las sospechosas con su motivo. |
+| Consulta | Qué devuelve | Estado actual |
+|---|---|---|
+| **Última capturada** (por defecto) | Cotización válida más reciente por `fecha_captura`. Si no hay ninguna, `null`. | No hay función en `src/`. El notebook selecciona la tasa con `obtener_tasa()`, que usa `fecha_publicacion` y no filtra por `estado`. |
+| **Última vigente** | La de la cotización válida más reciente, solo si declara `fecha_vigencia` aplicable. Si no la declara, "no determinable"; no se recurre a una tasa antigua. | No implementada; ni `src/` ni el notebook leen `fecha_vigencia`. |
+| **Historial** | Todas las cotizaciones de la clave, incluidas las sospechosas con su motivo. | `listar_cotizaciones()` solo filtra por `fuente` y `categoria`, devuelve el orden guardado y no filtra por el resto de la clave ni por `estado`. |
+
+**Consultas implementadas y registros sin procedencia.** `listar_cotizaciones()`
+devuelve el historial completo, en el orden guardado, cuando no se pasan
+filtros; eso incluye los registros históricos que tienen `fuente` y `categoria`
+en `null`. Los filtros por `fuente` y por `categoria` son de igualdad exacta y
+se combinan con AND si se pasan ambos. Un campo ausente se trata igual que
+`null` (`dict.get()`), y como no se puede filtrar por `null`, esos registros
+nunca coinciden con un filtro por fuente o categoría: no se les atribuye
+ninguna procedencia. En el historial actual, 26 cotizaciones tienen `fuente` y
+`categoria` en `null`.
+
+`registrar_cotizaciones()` valida la procedencia de **todo** el lote antes de
+escribir y solo admite `eltoque`/`mercado_informal` y `bcc`/`oficial`. Si una
+cotización no declara `fuente` o `categoria` válidas, o combina una fuente con
+una categoría que no le corresponde, lanza `ValueError` y no escribe nada. Los
+registros históricos sin procedencia se conservan tal cual y no se completan ni
+se reatribuyen.
 
 Si una fuente no proporciona `fecha_vigencia`, **no** se supone que coincida con
-`fecha_captura`: se guarda `null`. La consulta de vigencia solo se aplicará a
-fuentes que declaren esa fecha de forma sistemática, lo que debe verificarse
-antes de implementar.
+`fecha_captura`: se guarda `null`. No existe todavía una función de consulta de
+vigencia; solo se aplicará a fuentes que declaren esa fecha de forma
+sistemática, lo que debe verificarse antes de implementarla.
+
+`obtener_tasa()` no aplica la clave completa: `tipo_tasa` y `segmento` en `None`
+actúan como comodín y no filtra por `categoria`.
 
 ### 11.7 Vinculación con los anuncios
 
@@ -620,6 +774,15 @@ informales no se mezclan. Cada conversión se rastrea mediante `tasa_id` (ver
   documenta que los datos de ElToque son informativos y no representan
   necesariamente todas las operaciones del mercado, y se prohíbe mezclar o
   promediar cotizaciones de ambas fuentes.
+- 2026-11-08: se añaden la sección 13 (almacenamiento y unificación de capturas
+  de anuncios) y la sección 14 (entonces 15; datos salariales de referencia).
+- 2026-11-19: se actualiza el estado de CasasOasis: sus datos están disponibles,
+  pero la integración sigue pendiente.
+- 2026-11-24: auditoría documental. Se ajustan las secciones 1.4 (validación del
+  precio al guardar), 4 y 9 (privacidad), 11.5 (validación y deduplicación),
+  11.6 (consultas) y 13.1 (escritura atómica de capturas) para que describan el
+  comportamiento implementado. Se elimina el «Registro de cambios» vacío que
+  duplicaba el de la sección 12.
 
 ---
 
@@ -634,27 +797,55 @@ cruda y procesada, organizados en carpetas independientes:
 - `data/processed/anuncios/<fuente>/` — anuncios ya mapeados al esquema común.
 
 Cada ejecución guarda un par de archivos (crudo y procesado) con el mismo
-`id_captura` y `fecha_captura`, para que crudos y procesados siempre puedan
-relacionarse. Nunca se sobrescribe un archivo existente: cada ejecución genera
-un nombre de archivo distinto.
+`id_captura` y `fecha_captura`, para que crudos y procesados puedan
+relacionarse por esos metadatos. El nombre combina un sufijo del `id_captura` y
+una marca de tiempo; como el identificador es aleatorio, es muy improbable que
+dos ejecuciones generen el mismo nombre, pero **no se garantiza** que no se
+sobrescriba una captura anterior: no hay una comprobación previa de existencia
+y `os.replace()` sustituye el archivo de destino si ya existe. La protección
+depende, por tanto, de la unicidad del nombre, no de una verificación explícita.
+
+**Escritura por archivo.** `_escribir_json_atomico()` crea el directorio si no
+existe y escribe en un temporal del mismo directorio que el destino
+(`<nombre>.json.tmp`), hace `flush` y `fsync`, y publica con `os.replace()`.
+Si falla la escritura o la sustitución, intenta eliminar el temporal y propaga
+la excepción.
+
+**Publicación del par.** Los dos archivos se publican de forma independiente y
+en orden (primero el crudo, después el procesado). Si falla el segundo, se
+intenta eliminar el crudo ya publicado y el error se propaga. Es un *rollback*
+de mejor esfuerzo, no una transacción atómica: una interrupción abrupta del
+proceso entre ambas publicaciones puede dejar solo el crudo. Una captura
+incompleta se detecta al leerla, porque `leer_captura()` devuelve `None` cuando
+falta alguno de los dos archivos o sus `id_captura` internos no coinciden.
+
+**Temporales.** Antes de escribir, se eliminan los `*.tmp` que hayan quedado en
+las carpetas de crudos y procesados por ejecuciones fallidas anteriores; los
+errores de borrado se ignoran. Los temporales de la escritura en curso se
+eliminan si esta falla.
 
 ### 13.2 Unificación de capturas
 
-El módulo `src/data/unificacion.py` combina las capturas crudas y procesadas de
-diferentes fuentes en un único archivo JSON, sin modificar los archivos
-originales.
+El módulo `src/data/unificacion.py` combina los archivos **procesados** de GAOS y
+Revolico en un único archivo JSON, sin modificar los archivos originales.
 
 **Características:**
 
-- Recibe las rutas de los archivos crudo y procesado de cada fuente.
-- Añade el campo `fuente` a cada anuncio para identificar su procedencia.
-- Para Revolico, aplica el mapeador `mapear_anuncio_revolico` (que incluye la
-  clasificación de tipo de inmueble: `casa`, `apartamento`, `indeterminado`,
-  `no_vivienda`) en lugar de usar el valor hardcodeado `"casa"`.
-- Para GAOS, mantiene los metadatos ya existentes (`fuente: "gaos"`).
-- Genera un `id_captura` único para la captura unificada.
+- Recibe la ruta del archivo procesado de cada fuente; no lee los crudos.
+- Añade el campo `fuente` a cada anuncio para identificar su procedencia
+  (`gaos` o `revolico`).
+- Para Revolico, reclasifica `tipo_inmueble` a partir del `titulo` con
+  `_clasificar_tipo_inmueble` (`casa`, `apartamento`, `indeterminado`,
+  `no_vivienda`). No vuelve a ejecutar `mapear_anuncio_revolico`: el mapeo al
+  esquema común ya se hizo al guardar la captura procesada.
+- Para GAOS, conserva los campos procesados y solo añade `fuente: "gaos"`.
+- Genera un `id_captura` único para la captura unificada y un envoltorio con
+  `fuente: "multifuente"` y `url_fuente: null`.
 - Registra en `capturas_origen` los metadatos de cada captura de origen
-  (id_captura, fecha_captura, archivo, cantidad de anuncios).
+  (fuente, id_captura, fecha_captura, archivo y cantidad de anuncios).
+- En la entrada de Revolico añade `url_fuente_correcta` con la URL de búsqueda
+  del portal y una `nota` que explica que la captura histórica tenía metadatos
+  de GAOS y que en el archivo unificado se corrige a Revolico.
 
 **Resultado:** un archivo JSON con todos los anuncios unificados, donde cada
 registro conserva su `fuente` (`gaos` o `revolico`) y su `id_fuente` original,
@@ -672,9 +863,9 @@ como están.
 
 ---
 
-## 15. Datos salariales de referencia
+## 14. Datos salariales de referencia
 
-### 15.1 Procedencia y naturaleza de los datos
+### 14.1 Procedencia y naturaleza de los datos
 
 Los datos salariales utilizados en este proyecto provienen del documento
 `salarios_cuba_gaceta_2026.pdf`, que es una **estructuración secundaria**
@@ -686,7 +877,7 @@ jurídico o definitivo.
 
 Todos los salarios están expresados en Pesos Cubanos (CUP).
 
-### 15.2 Conjuntos de datos
+### 14.2 Conjuntos de datos
 
 Se mantienen tres archivos independientes en `data/reference/salarios/`:
 
@@ -731,7 +922,7 @@ Se almacenan por separado para uso futuro, y su aplicación a cargos
 específicos requiere información adicional no disponible en el documento
 fuente.
 
-### 15.3 Limitaciones
+### 14.3 Limitaciones
 
 - Los datos son precios salariales nominales en CUP, no salarios netos ni
   ingresos efectivos de los trabajadores.
@@ -746,8 +937,4 @@ fuente.
   adicional de 400 CUP por cada dos años adicionales, según se indica en
   el documento fuente; sin embargo, no se ha podido determinar si existe
   un límite máximo para este incremento.
-
----
-
-## 14. Registro de cambios
 

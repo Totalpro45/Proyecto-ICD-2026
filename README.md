@@ -12,8 +12,9 @@ fines exclusivamente académicos.
 
 Analizar si el precio de la vivienda en La Habana es asequible para el cubano
 promedio. Para ello se estudian anuncios de venta de casas y apartamentos y,
-cuando los datos disponibles lo permiten, se comparan sus precios con distintos
-referentes de ingreso.
+cuando los datos disponibles lo permiten, se comparan sus precios con el salario
+mínimo legal de 3.210 CUP mensuales (Resolución 14/2026), el referente de
+ingreso que utiliza el análisis actual.
 
 El análisis previsto incluye:
 
@@ -56,7 +57,8 @@ No se mezclan, no se promedian y no se presentan como si fueran la misma cosa.
 
 El sistema de tasas de cambio está implementado (`src/exchange_rates/`). Existe
 un historial de cotizaciones, y el repositorio incorpora una automatización
-diaria mediante GitHub Actions para actualizar el historial de elTOQUE.
+diaria mediante GitHub Actions que actualiza el historial con las cotizaciones
+de elTOQUE y del BCC.
 
 Las tasas no son el objeto de estudio: son un insumo para expresar los precios
 inmobiliarios en una unidad comparable y para interpretar el contexto cambiario
@@ -81,7 +83,7 @@ Este proyecto no está afiliado a elTOQUE ni al Banco Central de Cuba.
 - `pandas` — limpieza, consolidación y análisis.
 - `matplotlib` — visualización.
 - **Jupyter** — exploración y análisis exploratorio.
-- **JSON** — formato previsto para el historial de tasas.
+- **JSON** — formato del historial de tasas de cambio.
 - **Git y GitHub** — control de versiones y documentación.
 
 `spaCy` figura como dependencia opcional y solo se usará si el análisis de texto
@@ -104,12 +106,12 @@ pruebas funcionando y datos capturados de las fuentes implementadas.
 | Extracción de Mambbu | Pendiente (sujeta a autorización; ver `docs/decisiones.md` §8.3 y §10) |
 | CasasOasis | Datos disponibles; integración prevista tras la reestructuración y corrección de errores del proyecto |
 | Sistema de tasas de cambio | Implementado (`src/exchange_rates/`) |
-| Automatización de elTOQUE | Implementada y ejecutada mediante GitHub Actions |
-| Identificación de municipios | Implementada (basada en texto; los tests de normalización presentan fallos que requieren revisión; cobertura limitada) |
+| Automatización de tasas (elTOQUE y BCC) | Implementada y ejecutada mediante GitHub Actions |
+| Identificación de municipios | Implementada (basada en texto; tests de normalización en verde; cobertura limitada y resultados no completamente validados) |
 | Datos salariales (Resolución 14) | Integrados (`data/reference/salarios/`); análisis implementado en el notebook (sección 13) |
 | Análisis exploratorio de precios | Ejecutado en el notebook (secciones 7-9); no genera figuras en `outputs/figuras/`; no es un análisis definitivo de todo el mercado |
 | Comparación salarial | Implementada en el notebook (sección 13) |
-| Análisis municipal | Pendiente de consolidar (identificación de municipios con cobertura limitada y tests pendientes de revisión) |
+| Análisis municipal | Pendiente de consolidar (identificación de municipios con cobertura limitada) |
 | Análisis de características | Implementado en el notebook (sección 12) |
 | Precio por metro cuadrado | Pendiente (cobertura de superficie insuficiente para análisis general) |
 | Notebook de análisis definitivo | Implementado (`notebooks/analisis_vivienda.ipynb`) |
@@ -124,9 +126,13 @@ Resolución 14 de la Gaceta Oficial Ordinaria No. 60 (2026), disponibles en
 - `cargos_sectoriales.csv` — cargos de distintas fuentes sectoriales.
 - `pagos_adicionales.csv` — bonificaciones y coeficientes de ajuste.
 
-Estos datos se utilizan para comparar los precios inmobiliarios con
-distintas referencias salariales. El análisis salarial está implementado en
-el notebook (sección 13).
+El análisis salarial actual compara los precios inmobiliarios con el
+**salario mínimo legal** de 3.210 CUP mensuales (Resolución 14/2026) y está
+implementado en el notebook (sección 13). Las escalas salariales por oficio y la
+escala general están disponibles como datos de referencia, pero no se utilizan
+en el análisis actual; tampoco se usa un salario medio, porque el proyecto no
+dispone de una fuente documentada de salario medio nacional. No se presentan,
+por tanto, tres referentes salariales como si el análisis los combinara.
 
 ## Identificación municipal
 
@@ -161,15 +167,19 @@ municipio asignado, y los resultados no están completamente validados.
 │   └── analysis/          Directorio vacío (análisis pendiente en notebook)
 ├── tests/                 Pruebas del proyecto
 ├── outputs/               Resultados locales de análisis (gráficos y tablas de texto)
-├── data/                  Datos locales (no se versionan)
+├── data/                  Datos locales (con excepciones versionadas)
 │   └── reference/         Datos de referencia (salariales, etc.)
 ├── requirements.txt
 └── README.md
 ```
 
-Las carpetas `data/raw/`, `data/processed/` y `outputs/` contienen datos y
-resultados locales que **no deben publicarse en Git**. Solo se versionan el código
-y la documentación.
+La mayor parte de `data/raw/`, `data/processed/` y `outputs/` contiene datos y
+resultados locales que **no deben publicarse en Git**. No toda la carpeta `data/`
+se versiona: las excepciones son el historial de tasas
+(`data/raw/exchange_rates/historial_tasas.json`), el archivo unificado de
+anuncios saneado (`data/processed/anuncios/`) y los tres CSV de referencia
+salarial (`data/reference/salarios/`). El resto de los datos locales sigue
+excluido.
 
 ## Requisitos e instalación
 
@@ -210,8 +220,11 @@ procedencia de cada anuncio mediante el campo `fuente` en cada registro.
 ## Automatización de tasas de cambio (GitHub Actions)
 
 El proyecto incluye un workflow de GitHub Actions (`tasas-cambio.yml`) que
-consulta la API de elTOQUE una vez al día y guarda las cotizaciones en el
-historial de tasas de cambio (`data/raw/exchange_rates/historial_tasas.json`).
+consulta cada día las dos fuentes de tasas y guarda las cotizaciones en el
+historial de tasas de cambio (`data/raw/exchange_rates/historial_tasas.json`):
+
+- **elTOQUE:** API del mercado informal, con autenticación mediante token.
+- **BCC:** API pública de tasas oficiales (Segmento III), sin autenticación.
 
 La credencial de elTOQUE se administra mediante los secretos del repositorio;
 quien clone el proyecto no necesita obtener una clave propia para ejecutar las
@@ -220,13 +233,14 @@ pruebas ni trabajar con los análisis.
 El workflow:
 
 1. Descarga el repositorio e instala Python y las dependencias.
-2. Ejecuta `src/exchange_rates/capturar.py`, que consulta la API de elTOQUE
-   y guarda las cotizaciones nuevas en el historial.
+2. Ejecuta `src/exchange_rates/capturar.py`, que consulta elTOQUE y el BCC y
+   guarda las cotizaciones nuevas en el historial.
 3. Si hay cambios, los commitea y sube a la rama principal.
 4. Si no hay novedad (misma cotización que la anterior), no crea commit.
 
-Este archivo de historial es el único de `data/` que se versiona; el resto de
-los datos locales no se suben a GitHub.
+El historial de tasas es una de las excepciones versionadas de `data/`; las
+otras son el archivo unificado de anuncios saneado y los tres CSV de referencia
+salarial. El resto de los datos locales no se sube a GitHub.
 
 ## Documentación
 
