@@ -2,8 +2,11 @@
 
 **Proyecto:** ¿Es asequible el precio de la vivienda para el cubano promedio?
 **Caso de estudio:** La Habana
-**Estado:** documento de diseño; **no implementado**. No contiene código,
-scrapers, peticiones HTTP ni tasas reales.
+**Estado:** implementado. Incluye almacenamiento e historial de cotizaciones,
+captura de BCC y elTOQUE, módulos de extracción y almacenamiento
+(`src/exchange_rates/`) y automatización diaria mediante GitHub Actions.
+La elección de una tasa de referencia definitiva para el análisis sigue
+pendiente y no se resuelve en este documento.
 **Documento relacionado:** `docs/decisiones.md` (decisiones generales y esquema
 inmobiliario).
 
@@ -77,35 +80,6 @@ Esas son decisiones metodológicas posteriores.
 | ElToque | `eltoque` | Medio de prensa cubano. **No es una institución oficial.** | Información sobre el mercado informal (la categoría se asigna por cotización). |
 | Banco Central de Cuba (BCC) | `bcc` | Banco central del país; **institución oficial**. | Tasas oficiales del Segmento III («Tasa Población y FGNE»). |
 
-### 3.5 Implementación del BCC
-
-El BCC publica una API REST pública en `https://api.bc.gob.cu/v1/tasas-de-cambio/activas` que devuelve tasas de cambio para 13 monedas. Cada registro incluye tres tasas: `tasaOficial` (Segmento I), `tasaPublica` (Segmento II) y `tasaEspecial` (Segmento III).
-
-Este proyecto utiliza exclusivamente `tasaEspecial`, que corresponde al Segmento III («Tasa Población y FGNE»), la tasa variable dirigida a personas naturales y determinados participantes no estatales. Esta correspondencia se infiere de los valores oficiales publicados por el BCC: para USD, `tasaOficial = 24` (Segmento I) y `tasaPublica = 120` (Segmento II), mientras que `tasaEspecial` es el valor variable del Segmento III.
-
-**Criterio de identificación:** `tasaEspecial` se identifica como Segmento III por correspondencia con los valores oficiales conocidos de los Segmentos I y II. La respuesta JSON de la API **no incluye una etiqueta explícita de segmento** en cada registro; la identificación se documenta en el código y en esta documentación como criterio de implementación, sin presentar el campo JSON como si incluyera dicha etiqueta.
-
-Monedas disponibles en la API del BCC (13): AUD, CAD, CHF, CNY, DKK, EUR, GBP, JPY, MXN, NOK, RUB, SEK, USD.
-
-**MLC no está disponible en la API del BCC.** No se genera cotización MLC para esta fuente.
-
-No se extraen `tasaOficial` ni `tasaPublica`. Cada cotización BCC incluye `segmento = "III"`.
-
-Página de referencia del BCC:
-`https://www.bc.gob.cu/tasas-de-cambio`.
-
-Aclaraciones importantes:
-
-- Las cotizaciones de **ElToque** son **informativas**. No son tasas oficiales y
-  no necesariamente representan todas las operaciones reales del mercado. Al
-  citarlas debe quedar claro que son datos publicados por ElToque sobre el
-  mercado informal, no una medición completa de ese mercado.
-- La página del BCC es la referencia indicada para el proyecto. Las
-  publicaciones concretas, los formatos y las condiciones de uso deben
-  verificarse antes de implementar la extracción.
-- No se usa la denominación «Banco Nacional de Cuba (BNC)»: la institución que
-  se consulta es el **Banco Central de Cuba (BCC)** y su identificador es `bcc`.
-
 ### 3.2 La categoría no se deduce de la página
 
 `fuente` y `categoria` son dos dimensiones distintas:
@@ -114,16 +88,15 @@ Aclaraciones importantes:
 - **`categoria`**: a qué tipo de mercado pertenece la cotización (`oficial` o
   `mercado_informal`).
 
-La categoría se asigna **por cotización**, según lo que la publicación indique
-sobre esa tasa, y **no** por el simple hecho de aparecer en una página:
+El criterio previsto es asignar la categoría **por cotización**, según lo que
+la publicación indique sobre esa tasa, y **no** por el simple hecho de aparecer
+en una página. En la implementación actual el extractor de ElToque fija
+`mercado_informal` y el del BCC fija `oficial`; no hay un caso de «categoría
+indeterminable».
 
-- La mayoría de los datos de ElToque serán `mercado_informal`, pero si ElToque
-  publica una tasa que corresponde al mercado oficial, esa cotización se
-  registra como `oficial`.
-- La mayoría de los datos del BCC serán `oficial`, pero la categoría se asigna
-  igualmente cotización por cotización.
-- Si no se puede determinar a qué mercado pertenece una cotización, **no se
-  registra como válida**: se registra una incidencia. No se adivina.
+`registrar_cotizaciones()` solo comprueba la procedencia: si una cotización no
+declara una `fuente` o `categoria` admitidas, o las combina de forma no
+admitida, rechaza el lote completo con `ValueError` y no crea una incidencia.
 
 ### 3.3 No se asume una única tasa
 
@@ -142,26 +115,70 @@ campos para modalidades que todavía no se hayan comprobado.**
 
 ### 3.4 Lo que todavía no sabemos y no inventamos
 
-- las modalidades, operaciones y segmentos reales de cada fuente;
-- las URLs y la forma exacta de acceso (de ElToque no se fija ninguna aquí; del
-  BCC solo se conoce la página de referencia);
+- las modalidades, operaciones y segmentos reales de cada fuente, salvo la
+  correspondencia del BCC entre `tasaEspecial` y el Segmento III, que se
+  infiere de sus valores y se documenta en §3.5;
 - los horarios de publicación;
-- si ElToque publica ocasionalmente datos que correspondan al mercado oficial y
-  cómo los identifica.
+- si elTOQUE publica ocasionalmente datos que correspondan al mercado oficial y
+  cómo los identifica;
+- las condiciones de uso y la autorización de cada fuente para la extracción
+  automatizada, que deben revisarse y no se deducen de que exista una
+  implementación.
 
-Todo eso se verificará antes de implementar la extracción.
+Las direcciones y la forma de acceso que utiliza la implementación se
+documentan en §3.5. Los puntos anteriores se verifican antes de ampliar o
+modificar la extracción; no se completan por suposición.
+
+### 3.5 Implementación del acceso a las fuentes
+
+El BCC publica una API REST pública en `https://api.bc.gob.cu/v1/tasas-de-cambio/activas` que devuelve tasas de cambio para 13 monedas. Cada registro incluye tres tasas: `tasaOficial` (Segmento I), `tasaPublica` (Segmento II) y `tasaEspecial` (Segmento III).
+
+Este proyecto utiliza exclusivamente `tasaEspecial`, que corresponde al Segmento III («Tasa Población y FGNE»), la tasa variable dirigida a personas naturales y determinados participantes no estatales. Esta correspondencia se infiere de los valores oficiales publicados por el BCC: para USD, `tasaOficial = 24` (Segmento I) y `tasaPublica = 120` (Segmento II), mientras que `tasaEspecial` es el valor variable del Segmento III.
+
+**Criterio de identificación:** `tasaEspecial` se identifica como Segmento III por correspondencia con los valores oficiales conocidos de los Segmentos I y II. La respuesta JSON de la API **no incluye una etiqueta explícita de segmento** en cada registro; la identificación se documenta en el código y en esta documentación como criterio de implementación, sin presentar el campo JSON como si incluyera dicha etiqueta.
+
+Monedas disponibles en la API del BCC (13): AUD, CAD, CHF, CNY, DKK, EUR, GBP, JPY, MXN, NOK, RUB, SEK, USD.
+
+**MLC no está disponible en la API del BCC.** No se genera cotización MLC para esta fuente.
+
+No se extraen `tasaOficial` ni `tasaPublica`. Cada cotización BCC incluye `segmento = "III"`.
+
+Página de referencia del BCC:
+`https://www.bc.gob.cu/tasas-de-cambio`.
+
+**elTOQUE.** La implementación consulta `https://tasas.eltoque.com/v1/trmi`
+mediante una petición GET autenticada con el token de la variable de entorno
+`ELTOQUE_API_TOKEN`, que se envía en las cabeceras `apikey` y
+`Authorization: Bearer`. La URL base puede sobrescribirse con
+`ELTOQUE_API_BASE_URL`; el valor por defecto es el indicado.
+
+Aclaraciones importantes:
+
+- Las cotizaciones de **ElToque** son **informativas**. No son tasas oficiales y
+  no necesariamente representan todas las operaciones reales del mercado. Al
+  citarlas debe quedar claro que son datos publicados por ElToque sobre el
+  mercado informal, no una medición completa de ese mercado.
+- La página del BCC es la referencia institucional. El endpoint de la API del
+  BCC es público y no requiere autenticación; el de elTOQUE requiere token.
+  Que la implementación pueda consultar ambos no demuestra autorización legal
+  para otros usos: deben revisarse y respetarse las condiciones de uso y las
+  restricciones de acceso de cada fuente.
+- No se usa la denominación «Banco Nacional de Cuba (BNC)»: la institución que
+  se consulta es el **Banco Central de Cuba (BCC)** y su identificador es `bcc`.
 
 ---
 
 ## 4. Estructura del archivo
 
-- **Ruta propuesta:** `data/raw/exchange_rates/historial_tasas.json`.
+- **Ruta:** `data/raw/exchange_rates/historial_tasas.json`.
 - **Un solo archivo JSON** con un objeto raíz.
 - **Historial append-only:** solo se añaden registros.
-- El archivo vive bajo `data/raw/`, que ya está excluido por `.gitignore`. Los
-  **datos** no se versionan; el **esquema** se documenta aquí.
-- La carpeta no se crea en esta fase: se creará al implementar la primera
-  captura.
+- El historial **está versionado** en Git mediante una excepción explícita en
+  `.gitignore`. No toda la carpeta `data/` se versiona: también están
+  versionados el unificado procesado y los datos de referencia salariales, y el
+  resto de los datos locales queda excluido. El **esquema** se documenta aquí.
+- La carpeta `data/raw/exchange_rates/` se crea durante la captura si no
+  existe.
 
 ### 4.1 Estructura general
 
@@ -212,9 +229,9 @@ segmento y un par de monedas, en un momento dado.
 | `fecha_publicacion` | ISO 8601 o `null` | no | Cuándo lo publicó la fuente, si lo dice. |
 | `fecha_vigencia` | ISO 8601 o `null` | no | Desde cuándo aplica, si la fuente lo declara. |
 | `fecha_captura` | ISO 8601 | sí | Cuándo lo obtuvimos nosotros. |
-| `url_fuente` | texto | sí | Dirección exacta consultada. Se registrará al implementar. |
-| `estado` | texto | sí | `valida` o `sospechosa`. |
-| `motivo_sospecha` | texto o `null` | no | Obligatorio si `estado = sospechosa`; `null` si es válida. |
+| `url_fuente` | texto | sí | Dirección exacta consultada. Es `null` en los registros históricos anteriores a su incorporación (§5.3). |
+| `estado` | texto | sí | Convención del proyecto: `valida` o `sospechosa`. Los extractores no lo fijan; `registrar_cotizaciones()` guarda `valida` si el campo no viene y, si viene, lo copia sin validar que sea uno de esos valores. |
+| `motivo_sospecha` | texto o `null` | no | Convención: si `estado = sospechosa`, debe explicar la razón; `null` si es válida. El registro no comprueba esta convención. |
 | `reemplaza_a` | UUID o `null` | no | Si esta cotización corrige a otra, aquí va el `id` de la anterior. |
 
 ### 5.2 Ejemplo ficticio
@@ -244,7 +261,29 @@ segmento y un par de monedas, en un momento dado.
 > `123.45`, las fechas y la URL son **ficticios**. No representan ninguna tasa
 > real.
 
-### 5.3 Qué campos se eliminaron y por qué
+### 5.3 Registros históricos sin procedencia
+
+Las primeras capturas de elTOQUE (del 5 al 15 de noviembre de 2026) se
+guardaron antes de que el extractor añadiera `fuente`, `categoria` y
+`url_fuente`. Por eso el historial conserva 26 cotizaciones de USD y MLC con
+esos campos en `null`.
+
+Esos registros **no se completan por suposición**: no hay una prueba directa
+de procedencia a nivel de cotización (por ejemplo, `url_fuente` o la respuesta
+original de la API) y el proyecto decidió no atribuirlos. Las consultas siguen
+estas reglas:
+
+- una consulta general devuelve el historial completo, incluidos los registros
+  con procedencia desconocida;
+- una consulta filtrada por `fuente` o `categoria` usa igualdad exacta, así que
+  nunca devuelve esos registros como si pertenecieran a elTOQUE, al BCC o a una
+  categoría concreta;
+- las cotizaciones nuevas deben declarar una procedencia válida
+  (`eltoque`/`mercado_informal` o `bcc`/`oficial`); si falta `fuente`,
+  `categoria` o la combinación no corresponde, el almacenamiento rechaza el
+  lote completo y no escribe nada.
+
+### 5.4 Qué campos se eliminaron y por qué
 
 | Campo que se quitó | Por qué no lo necesitamos |
 |---|---|
@@ -432,11 +471,12 @@ mezcla ElToque con BCC ni tasas oficiales con informales**. Tampoco se calculan
 promedios ni agregados entre fuentes; si se comparan, se hace después de forma
 explícita y mostrando cada fuente por separado.
 
-### 9.2 Última tasa capturada (la consulta habitual)
+### 9.2 Última tasa capturada
 
-Es la cotización **válida** más reciente por `fecha_captura` para esa clave.
+**Definición prevista:** la cotización **válida** más reciente por
+`fecha_captura` para esa clave.
 
-Pasos:
+Pasos previstos:
 
 1. filtrar por la clave exacta;
 2. quedarse solo con `estado = valida`;
@@ -445,7 +485,21 @@ Pasos:
 5. devolver la primera;
 6. si no hay ninguna, devolver `null`. **Nunca `0`.**
 
-Esta es la consulta que usaremos por defecto para "la última tasa disponible".
+**Estado actual:** no existe una función reutilizable en `src/` que aplique
+estos pasos. `listar_cotizaciones()` solo filtra por `fuente` y `categoria`
+(§9.4), y el ayudante privado `_ultima_cotizacion_misma_clave()` sirve a la
+deduplicación, no como consulta pública.
+
+La selección de una tasa para el análisis se hace en el notebook con
+`obtener_tasa()`, que **no** implementa esta consulta: filtra por `fuente`,
+`moneda_origen`, `moneda_destino = "CUP"` y, opcionalmente, `tipo_tasa` y
+`segmento` (aquí `None` actúa como comodín, no como valor de la clave); descarta
+lo publicado después de la fecha de referencia; se queda con la
+`fecha_publicacion` más reciente; y solo desempata por `fecha_captura`. No filtra
+por `estado` ni por `categoria`, y una cotización sin `fecha_publicacion` también
+pasa el filtro (se compara como cadena vacía). Si en la última fecha de
+publicación hay más de un valor distinto, lanza `ValueError` en lugar de elegir
+uno.
 
 ### 9.3 Última tasa vigente
 
@@ -475,21 +529,38 @@ igual a `fecha_captura`. Se guarda `null` y la consulta de vigencia no la usa.
 Tampoco se devuelve una tasa antigua como si fuera la vigente: si no se puede
 determinar, se dice explícitamente.
 
+**Estado actual:** la consulta no está implementada. Ni `src/` ni el notebook
+leen `fecha_vigencia`: `obtener_tasa()` usa `fecha_publicacion`. Además, ninguna
+de las cotizaciones capturadas hasta ahora declara `fecha_vigencia`, así que
+tampoco habría datos para aplicarla.
+
 ### 9.4 Historial completo
 
-Se pueden recuperar todas las cotizaciones de una clave, ordenadas por
-`fecha_captura`. Incluye las `sospechosa`, con su marca y su motivo. No se
-elimina nada.
+La única consulta implementada es `listar_cotizaciones(ruta, fuente=None,
+categoria=None)` en `src/exchange_rates/almacenamiento.py`. Sin filtros devuelve
+todas las cotizaciones en el orden guardado, incluidas las que tienen `fuente` o
+`categoria` en `null`. Los filtros exigen igualdad exacta y se aplican de forma
+acumulativa:
+
+- con `fuente`, se excluyen los registros cuyo `fuente` sea `null` o no
+  coincida;
+- con `categoria`, se excluyen los registros cuyo `categoria` sea `null` o no
+  coincida;
+- con ambos, deben cumplirse las dos condiciones (AND).
+
+No filtra por el resto de la clave (`moneda_origen`, `moneda_destino`,
+`tipo_tasa`, `segmento`), no filtra por `estado` y no reordena por
+`fecha_captura`. Incluye las `sospechosa`. No se elimina nada.
 
 ### 9.5 Qué se puede consultar y qué no
 
-| Consulta | Qué devuelve | Qué no devuelve |
-|---|---|---|
-| Última capturada | La cotización válida más reciente. | Tasas sospechosas ni incidencias. |
-| Última vigente | La tasa vigente según la fecha declarada por la fuente, si la cotización más reciente la declara. | Una fecha de vigencia inventada ni una tasa antigua presentada como actual. |
-| Historial | Todas las cotizaciones de la clave, incluidas las sospechosas. | Incidencias mezcladas con tasas. |
-| Incidencias | Fallos por fuente, tipo o fecha. | Tasas. |
-| Actualizaciones | Resumen de cada ejecución. | Cotizaciones concretas (se enlazan por `id_actualizacion`). |
+| Consulta | Qué devuelve | Qué no devuelve | Estado actual |
+|---|---|---|---|
+| Última capturada | La cotización válida más reciente por `fecha_captura`. | Tasas sospechosas ni incidencias. | No hay función en `src/`; el notebook selecciona con `obtener_tasa()` usando `fecha_publicacion`. |
+| Última vigente | La tasa vigente según `fecha_vigencia`, si la cotización más reciente la declara. | Una fecha de vigencia inventada ni una tasa antigua presentada como actual. | No implementada. |
+| Historial | Las cotizaciones almacenadas. | Incidencias mezcladas con tasas. | `listar_cotizaciones()`, solo con filtros exactos por `fuente` y `categoria` y en el orden guardado. |
+| Incidencias | Fallos por fuente, tipo o fecha. | Tasas. | Se leen de `cargar_historial()["incidencias"]`; no hay función de listado. |
+| Actualizaciones | Resumen de cada ejecución. | Cotizaciones concretas (se enlazan por `id_actualizacion`). | Se leen de `cargar_historial()["actualizaciones"]`; no hay función de listado. |
 
 ---
 
@@ -510,8 +581,21 @@ elimina nada.
 8. **Actualización parcial:** si dentro de una fuente se obtienen unas
    cotizaciones y otras no, se guardan las válidas y se registran incidencias
    para las fallidas.
-9. **Copia de seguridad:** antes de escribir, conviene conservar una copia del
-   archivo anterior. Es una medida sencilla y fácil de explicar.
+9. **Escritura atómica y respaldo:** `guardar_historial()` serializa el
+   historial completo en memoria antes de tocar ningún archivo. Después escribe
+   el contenido en un archivo temporal del mismo directorio, hace `flush` y
+   `fsync`. Si ya existe un historial, copia la versión actual a un temporal de
+   respaldo en el mismo directorio y, solo cuando esa copia está completa,
+   sustituye `<archivo>.bak` con `os.replace()`. A continuación sustituye el
+   historial con `os.replace()` y elimina los temporales si algo falla.
+   Si falla la creación del temporal, la copia o la sustitución del respaldo, el
+   guardado se aborta y el error se propaga: el historial original y el `.bak`
+   anterior quedan intactos. Si falla la sustitución del historial después de
+   actualizar el `.bak`, el historial original sigue intacto y el `.bak`
+   contiene una copia válida de esa versión. El `.bak` conserva la versión
+   inmediatamente anterior del historial y no constituye un historial de
+   respaldos sucesivos; es local y no se versiona. En la primera escritura, sin
+   historial previo, no se crea `.bak`.
 
 ### 10.1 Flujo de captura con dos fuentes
 
@@ -525,8 +609,8 @@ forma independiente:
 4. Registra las cotizaciones obtenidas de cada fuente en el mismo historial.
 5. Registra la actualización con el resultado por fuente (`ok`, `sin_novedad`
    o `error`).
-6. Devuelve código 0 si al menos una fuente se procesó correctamente, 1 si
-   ambas fallaron.
+6. Devuelve código 0 solo si ambas fuentes se procesaron correctamente (o sin
+   novedad), 1 si al menos una falló.
 
 Cada fuente tiene su propio tratamiento de errores:
 - elTOQUE: `ElToqueAuthError` (401), `ElToqueConnectionError` (red/JSON),
@@ -541,21 +625,56 @@ Cada fuente tiene su propio tratamiento de errores:
 
 ### 11.1 Cuándo se rechaza una cotización
 
-Se rechaza (y se registra una incidencia de tipo `validacion`) si:
+Las comprobaciones no están todas en la misma capa. Conviene distinguir tres
+momentos.
 
-1. `valor` es nulo, no numérico o **menor o igual que cero**.
-2. `moneda_origen` o `moneda_destino` faltan o no están identificadas.
-3. Las dos monedas son la misma.
-4. Falta `fecha_captura` o no es una fecha válida.
-5. Faltan `fuente`, `categoria`, `tipo_tasa` o `url_fuente`.
-6. No se puede determinar a qué mercado pertenece la cotización (`oficial` o
-   `mercado_informal`) a partir de lo que publica la fuente.
-7. No se puede asociar a una actualización.
-9. Está marcada como `sospechosa` pero no tiene `motivo_sospecha`.
+**Al extraer la respuesta de la fuente** (`extraer_cotizaciones()` en
+`src/exchange_rates/eltoque.py` y `src/exchange_rates/bcc.py`) se descartan en
+silencio, sin crear cotización ni incidencia, los registros que no se pueden
+interpretar con seguridad:
 
-Los duplicados no se consideran errores de validación: se gestionan según
-las reglas de la sección 12. Si no hay una observación nueva, no se añade
-otra cotización y la actualización se registra como `sin_novedad`.
+- moneda fuera de las que rastrea el proyecto (`MONEDAS_OBJETIVO`);
+- `valor` nulo, no numérico o **menor o igual que cero**;
+- en BCC, entradas que no son objetos o sin `codigoMoneda` de texto.
+
+La extracción no valida `fecha_captura`, la moneda de destino ni la
+procedencia: esos campos los fija el propio extractor o se completan al
+registrar. elTOQUE tampoco comprueba la estructura de la respuesta: si `tasas`
+falta o no es un diccionario, la extracción devuelve una lista vacía; si la
+respuesta entera no es un objeto, se produce un `AttributeError` no controlado.
+
+**Al registrar el lote** (`registrar_cotizaciones()` en
+`src/exchange_rates/almacenamiento.py`) la única validación es la procedencia.
+Se recorre todo el lote antes de escribir y se lanza `ValueError`, sin guardar
+nada, si alguna cotización:
+
+1. no es un diccionario;
+2. no declara `fuente` o `categoria`, o usa un valor no admitido;
+3. combina una fuente y una categoría que no corresponden. Las combinaciones
+   admitidas son `eltoque` con `mercado_informal` y `bcc` con `oficial`.
+
+El registro **no** vuelve a comprobar `valor`, las monedas, `tipo_tasa`,
+`url_fuente` ni `motivo_sospecha`, y **no** rechaza una cotización por no
+declarar `fecha_captura`: si falta, la completa con la hora de captura
+(`_ahora_iso()`). Si falta `tipo_tasa`, guarda `no_especificado`; si falta
+`estado`, guarda `valida`.
+
+**Incidencias.** `registrar_cotizaciones()` no crea incidencias: los descartes
+de la extracción son silenciosos y un lote con procedencia inválida lanza una
+excepción que el flujo de captura no captura. Las incidencias las crea
+`src/exchange_rates/capturar.py` ante fallos de la fuente (autenticación,
+conexión, estructura en BCC o error HTTP), no por cada cotización descartada.
+
+**Cero cotizaciones.** Si la extracción devuelve una lista vacía,
+`registrar_cotizaciones()` no añade cotizaciones, reescribe el historial
+(actualizando `ultima_actualizacion` y el respaldo) y devuelve los contadores a
+cero; la captura marca la fuente como `sin_novedad` sin incidencia. No se
+distingue "la fuente no publicó nada" de "todo se descartó por inválido".
+
+Los duplicados no son errores de validación: se gestionan según las reglas de
+la sección 12. Si no hay una observación nueva, no se añade otra cotización y
+la actualización se registra como `sin_novedad` (o se contabiliza en
+`duplicados_omitidos` si había fechas), sin incidencia ni excepción.
 
 ### 11.2 Cuándo se conserva como sospechosa
 
@@ -564,8 +683,10 @@ dato, pero que aconseja no usarlo por defecto. En ese caso:
 
 - `estado = "sospechosa"`;
 - `motivo_sospecha` explica la razón;
-- se excluye de las consultas normales;
-- se puede recuperar en el historial o con una consulta explícita.
+- se conserva en el historial como cualquier otra cotización: **no** hay una
+  exclusión automática. `listar_cotizaciones()` no filtra por `estado` y el
+  notebook de análisis selecciona por fuente, moneda, tipo, segmento y fecha,
+  sin mirar `estado`. Cualquier exclusión tendría que aplicarla el consumidor.
 
 **Lo que no hacemos:** marcar como sospechosa una cotización **solo** porque su
 valor sea muy distinto al anterior. Una variación grande puede ser real. La
@@ -608,14 +729,15 @@ Reglas:
 2. Si `fecha_publicacion` y `fecha_vigencia` son `null`, no podemos saber si la
    fuente publicó una tasa nueva o repitió la anterior. En ese caso se compara
    con la **última cotización guardada de la misma clave** (fuente, categoría,
-   tipo de tasa, segmento y monedas):
+   tipo de tasa, segmento y monedas), ordenando por `fecha_captura` y usando el
+   orden de almacenamiento solo para desempatar:
    - si `valor_texto_original` coincide → es la misma observación: no se añade
      nada y la actualización se registra como `sin_novedad`;
    - si cambia → es una observación nueva y se guarda con su `fecha_captura`.
-3. Si solo una de las dos fechas está disponible, se utiliza la información
-   existente para comparar la cotización con las observaciones anteriores.
-   Si no es posible determinar si se trata de una observación nueva, no se
-   añade automáticamente y se registra una incidencia para su revisión.
+3. Si solo una de las dos fechas está disponible (en la cotización nueva o en
+   la última de la misma clave), no se aplica la comparación por valor: si no
+   es un duplicado exacto, se trata como una observación nueva y se guarda.
+   No se registra una incidencia por esa circunstancia.
 4. Un mismo `valor` con distinta fuente, moneda, modalidad, segmento o fecha
    **sí** genera registros separados.
 5. No se borra un duplicado detectado: simplemente no se añade.
@@ -635,16 +757,16 @@ fácil de auditar.
 
 ## 13. Fallos, cambios de formato y campos faltantes
 
-| Situación | Qué hacemos |
+| Situación | Qué hace el sistema hoy |
 |---|---|
-| **Campo obligatorio ausente** | Rechazar la cotización, registrar incidencia (`estructura` o `validacion`) y conservar la última tasa válida. |
-| **Campo opcional ausente** | Guardar `null`; no inventar el valor. |
-| **Cambio de estructura de la página** | Detener la extracción de esa fuente en esa ejecución, registrar incidencia `estructura` y no intentar adivinar. |
-| **Moneda o modalidad desconocida** | Rechazar y registrar incidencia; no mapear a ciegas. |
-| **Categoría no determinable** | Si no se puede saber si la tasa es oficial o informal, no se registra como válida; se registra una incidencia `validacion`. |
+| **Campo obligatorio ausente** | Depende del campo. `fuente`, `categoria` o una combinación no admitida → `registrar_cotizaciones()` lanza `ValueError` y no guarda el lote. `valor` nulo, no numérico o ≤ 0, o moneda no rastreada → el extractor omite esa cotización sin incidencia. `fecha_captura` ausente **no** se rechaza: se completa con la hora de captura. `tipo_tasa` ausente se guarda como `no_especificado`. |
+| **Campo opcional ausente** | Se guarda `null`; no se inventa el valor. |
+| **Cambio de estructura de la página o API** | En BCC, `consultar_tasas()` lanza `BccStructureError` y `capturar.py` registra una incidencia `estructura`; se detiene esa fuente. En elTOQUE no hay comprobación de estructura: si `tasas` falta o no es un diccionario, la extracción devuelve una lista vacía y la fuente queda como `sin_novedad`; si la respuesta entera no es un objeto, el fallo no se controla. |
+| **Moneda o modalidad desconocida** | La extracción omite la cotización, sin incidencia; no se mapea a ciegas. |
+| **Categoría no determinable** | No ocurre en el flujo actual: la categoría la fija el extractor (`oficial` para BCC, `mercado_informal` para elTOQUE). No hay código que la deduzca de la página ni una incidencia por ese motivo. |
 | **La fuente deja de publicar una modalidad** | No se crea una cotización nueva; la última válida permanece y se puede consultar su antigüedad. |
-| **Actualización parcial** | Conservar las cotizaciones válidas ya obtenidas y registrar incidencias para las fallidas. |
-| **La fuente no responde** | Registrar incidencia `conexion`; no tocar las tasas anteriores. |
+| **Actualización parcial** | Cada fuente se procesa por separado: si una falla, la otra conserva sus datos y se registra una incidencia de la fallida. Dentro de una fuente, las cotizaciones descartadas por el extractor no generan incidencia. |
+| **La fuente no responde** | `capturar.py` registra una incidencia `conexion` y no toca las tasas anteriores. |
 
 ---
 
@@ -658,10 +780,15 @@ fácil de auditar.
 
 ### 14.2 Cómo se rastrea una conversión
 
-Se propone añadir al esquema inmobiliario un solo campo nuevo: **`tasa_id`**, con
-el UUID de la cotización aplicada. Los demás datos de la tasa (fuente,
-categoría, modalidad, segmento, fechas) se obtienen del historial de tasas
-mediante ese `id`, sin duplicarlos en el anuncio.
+El esquema inmobiliario ya incluye **`tasa_id`** y lo serializa en los anuncios
+procesados: es una referencia al `id` de la cotización aplicada. El diseño prevé
+obtener del historial de tasas los demás datos de la tasa (fuente, categoría,
+modalidad, segmento, fechas) mediante ese `id`, sin duplicarlos en el anuncio.
+
+En la implementación actual `tasa_id` es un campo de texto opcional
+(`Optional[str]`): no se valida que tenga formato UUID y los flujos de captura lo
+inicializan en `None`. Mientras no exista un flujo que aplique conversiones a USD,
+ningún anuncio lo rellena y la trazabilidad de conversiones no está operativa.
 
 Los campos existentes `tasa_conversion_usd`, `tasa_fecha` y `tasa_fuente` se
 mantienen como resumen legible.
@@ -784,8 +911,8 @@ que ninguna de las dos fuentes publicó y que no podríamos justificar.
 5. Las actualizaciones y las incidencias se guardan aparte: un fallo no es una
    tasa.
 6. Nunca sobrescribimos: el historial completo permite auditar.
-7. Podemos consultar la última tasa capturada y, si la fuente declara vigencia,
-   la última vigente.
+7. La consulta general del historial ya existe; elegir una tasa para el análisis
+   se hace hoy en el notebook y la última vigente aún no está implementada.
 8. Si una cotización parece anómala, se conserva como sospechosa con su motivo y
    no se usa por defecto.
 9. Cuando convirtamos un anuncio, guardaremos el `tasa_id` para saber
@@ -800,6 +927,9 @@ que ninguna de las dos fuentes publicó y que no podríamos justificar.
 
 ## 17. Decisiones pendientes
 
+La copia de seguridad local ya está implementada y documentada en §10, regla 9; no
+queda como decisión pendiente.
+
 1. **Publicaciones concretas del BCC**: ahora conocidas parcialmente. La API
    pública `https://api.bc.gob.cu/v1/tasas-de-cambio/activas` devuelve 13 monedas
    con tres tasas cada una (`tasaOficial`, `tasaPublica`, `tasaEspecial`). Se
@@ -808,8 +938,9 @@ que ninguna de las dos fuentes publicó y que no podríamos justificar.
    correspondencia se infiere de los valores, no está etiquetada explícitamente
    en la respuesta JSON de la API. No se ha podido acceder a la documentación
    OpenAPI (`/docs` devuelve 403).
-2. **URLs y forma de acceso**: resueltas para BCC (endpoint público, sin
-   autenticación). Para elTOQUE se mantiene sin cambios.
+2. **URLs y forma de acceso**: resueltas para BCC y elTOQUE; los endpoints y
+   la autenticación se documentan en §3.5. Queda la cautela sobre condiciones
+   de uso y restricciones de acceso.
 3. **Modalidades y segmentos reales**: parcialmente resueltas para BCC
    (Segmento III vía `tasaEspecial`). Pendiente confirmación oficial explícita.
 4. **Hora exacta** de la actualización diaria y zona horaria de referencia.
@@ -819,8 +950,7 @@ que ninguna de las dos fuentes publicó y que no podríamos justificar.
 7. **Triangulación** entre monedas. No se implementa por ahora.
 8. **Relación precios-salarios.** Fuera del alcance de este documento.
 9. **Crecimiento del archivo:** si conviene separar por año o por fuente.
-10. **Copia de seguridad:** dónde y con qué frecuencia guardar la copia anterior.
-11. **Dirección de las cotizaciones:** verificar cómo publica cada fuente los
+10. **Dirección de las cotizaciones:** verificar cómo publica cada fuente los
     pares de monedas y decidir si se permite utilizar la inversa matemática
     de una cotización directa, conservando la trazabilidad mediante `tasa_id`.
 
@@ -849,3 +979,9 @@ que ninguna de las dos fuentes publicó y que no podríamos justificar.
   asigna por cotización y no por la página, y se documenta que ElToque es un
   medio de prensa cuyos datos son informativos. Se prohíbe mezclar o promediar
   cotizaciones de ambas fuentes.
+- 2026-11-16: se documenta la implementación del acceso a las fuentes (§3.5) y
+  el flujo de captura con dos fuentes (§10.1).
+- 2026-11-24: auditoría documental. Se ajustan las secciones 5 (campos),
+  9 (consultas), 11 (validación y sospecha), 12 (duplicados), 13 (fallos y
+  campos faltantes) y 16 (resumen) para que describan el comportamiento
+  implementado.

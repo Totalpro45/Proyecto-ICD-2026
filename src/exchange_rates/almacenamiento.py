@@ -7,8 +7,14 @@ Gestiona el archivo único JSON append-only en
 Funciones principales:
 - Cargar y guardar el historial sin sobrescribir registros previos.
 - Añadir cotizaciones nuevas detectando duplicados (por clave y valor).
+- Exigir que las cotizaciones nuevas declaren una procedencia válida.
+- Consultar el historial completo o filtrarlo por fuente y categoría.
 - Registrar actualizaciones e incidencias por separado.
-- Conservar el archivo anterior como copia de seguridad antes de escribir.
+- Guardar de forma atómica conservando el archivo anterior como respaldo.
+
+Los registros antiguos pueden tener ``fuente`` y ``categoria`` nulas. Se
+conservan tal cual y no se atribuyen a ninguna fuente: los filtros usan
+igualdad exacta, mientras que la consulta general sí los incluye.
 
 No implementa captura automática ni integración con anuncios inmobiliarios;
 solo almacena lo que se le proporcione.
@@ -17,7 +23,9 @@ solo almacena lo que se le proporcione.
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +36,15 @@ RUTA_HISTORIAL = Path("data/raw/exchange_rates/historial_tasas.json")
 
 # Versión del esquema documentada en docs/sistema_tasas_cambio.md.
 VERSION_ESQUEMA = "1.0"
+
+# Procedencia admitida para las cotizaciones nuevas. Los registros históricos
+# pueden conservar estos campos en None, pero no se completan por suposición.
+FUENTES_VALIDAS = ("eltoque", "bcc")
+CATEGORIAS_VALIDAS = ("oficial", "mercado_informal")
+PROCEDENCIAS_VALIDAS = {
+    ("eltoque", "mercado_informal"),
+    ("bcc", "oficial"),
+}
 
 
 def _ahora_iso() -> str:
@@ -108,10 +125,17 @@ def guardar_historial(
     ruta: Path = RUTA_HISTORIAL,
     ultima_actualizacion: Optional[str] = None,
 ) -> None:
-    """Guarda el historial en el archivo JSON.
+    """Guarda el historial en el archivo JSON de forma atómica.
 
-    Antes de escribir, conserva una copia del archivo anterior como
-    respaldo (docs/sistema_tasas_cambio.md §10 regla 9).
+    El contenido se serializa y se escribe primero en un archivo temporal del
+    mismo directorio. Solo cuando la escritura termina correctamente se
+    sustituye el historial original con ``os.replace``. Si algo falla, el
+    original permanece intacto y el temporal se elimina.
+
+    Antes de sustituir, actualiza el respaldo ``.bak`` de forma atómica. Si el
+    respaldo no se puede crear, el error se propaga y no se modifica el
+    historial ni el respaldo anterior
+    (docs/sistema_tasas_cambio.md §10 regla 9).
 
     Args:
         datos: Historial a guardar.
@@ -123,22 +147,77 @@ def guardar_historial(
     """
     ruta.parent.mkdir(parents=True, exist_ok=True)
 
-    # Copia de seguridad antes de sobrescribir.
-    if ruta.exists():
-        respaldo = ruta.with_suffix(ruta.suffix + ".bak")
-        try:
-            shutil.copy2(ruta, respaldo)
-        except OSError:
-            pass
-
     if ultima_actualizacion is not None:
         datos["ultima_actualizacion"] = ultima_actualizacion
     else:
         datos["ultima_actualizacion"] = _ahora_iso()
 
-    with ruta.open("w", encoding="utf-8") as f:
-        json.dump(datos, f, ensure_ascii=False, indent=2)
-        f.write("\n")
+    # Serializar completo antes de tocar ningún archivo. Así un error de
+    # serialización no modifica el historial ni el respaldo.
+    texto = json.dumps(datos, ensure_ascii=False, indent=2) + "\n"
+
+    temporal: Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=ruta.parent,
+            prefix=f"{ruta.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as archivo_temporal:
+            temporal = Path(archivo_temporal.name)
+            archivo_temporal.write(texto)
+            archivo_temporal.flush()
+            os.fsync(archivo_temporal.fileno())
+
+        # El temporal ya está completo: actualizar el respaldo con la versión
+        # anterior y sustituir el original de una sola operación. Si el
+        # respaldo no se puede crear, el guardado se aborta y el error se
+        # propaga: el historial y el respaldo anterior quedan intactos.
+        if ruta.exists():
+            _actualizar_respaldo(ruta)
+
+        os.replace(temporal, ruta)
+        temporal = None
+    finally:
+        # Si la escritura o la sustitución fallaron, no dejar temporales.
+        if temporal is not None:
+            try:
+                temporal.unlink()
+            except OSError:
+                pass
+
+
+def _actualizar_respaldo(ruta: Path) -> None:
+    """Copia la versión actual del historial al respaldo ``.bak``.
+
+    La copia se escribe en un temporal del mismo directorio y solo se sustituye
+    el respaldo cuando la copia está completa. Si falla la creación del
+    temporal, la copia o la sustitución, la excepción se propaga y el ``.bak``
+    anterior queda intacto (docs/sistema_tasas_cambio.md §10 regla 9).
+
+    Args:
+        ruta: Ruta del historial que se quiere respaldar.
+    """
+    respaldo = ruta.with_suffix(ruta.suffix + ".bak")
+    temporal_respaldo: Optional[Path] = None
+    try:
+        descriptor, nombre = tempfile.mkstemp(
+            dir=ruta.parent, prefix=f"{respaldo.name}.", suffix=".tmp"
+        )
+        temporal_respaldo = Path(nombre)
+        os.close(descriptor)
+        shutil.copy2(ruta, temporal_respaldo)
+        os.replace(temporal_respaldo, respaldo)
+        temporal_respaldo = None
+    finally:
+        # Si la copia o la sustitución fallaron, no dejar temporales.
+        if temporal_respaldo is not None:
+            try:
+                temporal_respaldo.unlink()
+            except OSError:
+                pass
 
 
 def _es_duplicado_exacto(cotizacion: dict, existente: dict) -> bool:
@@ -171,6 +250,110 @@ def _es_duplicado_por_valor(cotizacion: dict, existente: dict) -> bool:
     )
 
 
+def _ultima_cotizacion_misma_clave(
+    cotizaciones: list[dict], clave: tuple
+) -> Optional[dict]:
+    """Devuelve la cotización más reciente de una clave.
+
+    El historial es append-only, pero no se ordena al cargarlo. Para no
+    depender del orden de la lista se usa ``fecha_captura``, el mismo
+    criterio temporal que la consulta de última tasa capturada
+    (docs/sistema_tasas_cambio.md §9.2). Si falta la fecha o hay empate,
+    se conserva la última que aparece en el historial.
+
+    Args:
+        cotizaciones: Lista de cotizaciones existentes.
+        clave: Clave de consulta calculada con ``_clave_cotizacion``.
+
+    Returns:
+        La cotización más reciente con esa clave, o None si no hay ninguna.
+    """
+    ultima = None
+    ultima_fecha = ""
+    for existente in cotizaciones:
+        if _clave_cotizacion(existente) != clave:
+            continue
+        fecha = str(existente.get("fecha_captura") or "")
+        if ultima is None or fecha >= ultima_fecha:
+            ultima = existente
+            ultima_fecha = fecha
+    return ultima
+
+
+def listar_cotizaciones(
+    ruta: Path = RUTA_HISTORIAL,
+    fuente: Optional[str] = None,
+    categoria: Optional[str] = None,
+) -> list[dict]:
+    """Devuelve las cotizaciones del historial, con filtros opcionales.
+
+    Sin filtros devuelve el historial completo, incluidos los registros
+    antiguos cuya procedencia se desconoce. Al filtrar se exige igualdad
+    exacta: una cotización con ``fuente`` o ``categoria`` nula no se
+    atribuye a ninguna fuente ni categoría.
+
+    Args:
+        ruta: Ruta del archivo JSON de historial.
+        fuente: Fuente exacta por la que filtrar, o None para no filtrar.
+        categoria: Categoría exacta por la que filtrar, o None para no
+            filtrar.
+
+    Returns:
+        Lista de cotizaciones que cumplen los filtros, en el orden guardado.
+    """
+    cotizaciones = cargar_historial(ruta).get("cotizaciones", [])
+    if fuente is not None:
+        cotizaciones = [
+            cotizacion
+            for cotizacion in cotizaciones
+            if cotizacion.get("fuente") == fuente
+        ]
+    if categoria is not None:
+        cotizaciones = [
+            cotizacion
+            for cotizacion in cotizaciones
+            if cotizacion.get("categoria") == categoria
+        ]
+    return cotizaciones
+
+
+def _validar_procedencia(cotizacion: dict, indice: int) -> None:
+    """Comprueba que una cotización nueva declare una procedencia admitida.
+
+    No completa valores: si falta ``fuente`` o ``categoria``, o si la
+    combinación no corresponde a una fuente conocida, se lanza ValueError.
+
+    Args:
+        cotizacion: Cotización recibida para guardar.
+        indice: Posición de la cotización en la lista, para el mensaje.
+
+    Raises:
+        ValueError: Si la cotización no es un objeto o su procedencia no es
+            válida.
+    """
+    if not isinstance(cotizacion, dict):
+        raise ValueError(f"La cotización {indice} no es un objeto")
+
+    fuente = cotizacion.get("fuente")
+    categoria = cotizacion.get("categoria")
+
+    if fuente not in FUENTES_VALIDAS:
+        raise ValueError(
+            f"La cotización {indice} no tiene una fuente válida; "
+            f"se esperaba una de: {', '.join(FUENTES_VALIDAS)}"
+        )
+    if categoria not in CATEGORIAS_VALIDAS:
+        raise ValueError(
+            f"La cotización {indice} no tiene una categoría válida; "
+            f"se esperaba una de: {', '.join(CATEGORIAS_VALIDAS)}"
+        )
+    if (fuente, categoria) not in PROCEDENCIAS_VALIDAS:
+        raise ValueError(
+            f"La cotización {indice} combina una fuente y una categoría "
+            "que no corresponden entre sí"
+        )
+
+
 def registrar_cotizaciones(
     cotizaciones: list[dict],
     id_actualizacion: str,
@@ -178,10 +361,14 @@ def registrar_cotizaciones(
 ) -> dict:
     """Añade cotizaciones al historial append-only.
 
+    Antes de escribir, valida que todas las cotizaciones declaren una
+    procedencia admitida. Así no se generan registros incompletos ni se
+    guardan lotes parciales.
+
     Detecta duplicados y no los duplica:
-    - Si todos los campos clave coinciden con una cotización ya guardada,
-      no se añade.
-    - Si no hay fechas y el valor coincide con la última de la misma clave,
+    - Si todos los campos clave coinciden con la última cotización de la
+      misma clave, no se añade.
+    - Si no hay fechas y el valor coincide con el último de la misma clave,
       no se añade (sin_novedad).
     - Si el valor cambia, se añade como nueva cotización.
 
@@ -196,7 +383,16 @@ def registrar_cotizaciones(
         - "cotizaciones_agregadas": número de cotizaciones nuevas guardadas.
         - "sin_novedad": número de consultas sin cotización nueva.
         - "duplicados_omitidos": número de duplicados detectados.
+
+    Raises:
+        ValueError: Si alguna cotización no declara una fuente y una
+            categoría válidas. En ese caso no se escribe nada.
     """
+    # Validar todo antes de cargar o escribir para no dejar registros
+    # parciales si una cotización del lote está incompleta.
+    for indice, cotizacion in enumerate(cotizaciones):
+        _validar_procedencia(cotizacion, indice)
+
     historial = cargar_historial(ruta)
     cotizaciones_existentes = historial.get("cotizaciones", [])
 
@@ -207,12 +403,11 @@ def registrar_cotizaciones(
     for cot in cotizaciones:
         clave = _clave_cotizacion(cot)
 
-        # Buscar si ya existe una cotización con la misma clave.
-        existente_misma_clave = None
-        for existente in cotizaciones_existentes:
-            if _clave_cotizacion(existente) == clave:
-                existente_misma_clave = existente
-                break
+        # Comparar con la última cotización de la misma clave, no con la
+        # primera que aparezca en el historial.
+        existente_misma_clave = _ultima_cotizacion_misma_clave(
+            cotizaciones_existentes, clave
+        )
 
         if existente_misma_clave is not None:
             # Ya existe una observación con esta clave.
