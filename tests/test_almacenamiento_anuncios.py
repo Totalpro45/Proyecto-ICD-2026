@@ -75,14 +75,14 @@ CRUDOS_EJEMPLO = [
     {
         "ulistingid": "abc-123",
         "vctitle": "Casa en venta",
-        "precio": 150000,
+        "dcprice": 150000,
         "vccurrencytype": "USD",
         "moneda": "USD",
     },
     {
         "ulistingid": "abc-456",
         "vctitle": "Apartamento en venta",
-        "precio": 85000,
+        "dcprice": 85000,
         "vccurrencytype": "USD",
     },
 ]
@@ -457,7 +457,7 @@ def test_guardar_captura_completa_rechaza_datos_invalidos_no_guarda():
         {
             "ulistingid": "abc-123",
             "vctitle": "Casa en venta",
-            "precio": "no es un número",
+            "dcprice": "no es un número",
             "vccurrencytype": "USD",
             "moneda": "USD",
         },
@@ -484,7 +484,7 @@ def test_guardar_captura_completa_rechaza_precio_no_numerico_no_guarda():
         {
             "ulistingid": "abc-123",
             "vctitle": "Casa en venta",
-            "precio": "cien mil",
+            "dcprice": "cien mil",
             "vccurrencytype": "USD",
             "moneda": "USD",
         },
@@ -505,6 +505,149 @@ def test_guardar_captura_completa_rechaza_precio_no_numerico_no_guarda():
         assert len(archivos_procesado) == 0
 
 
+# --- Pruebas de validación del precio según la fuente ---
+
+
+def test_validacion_gaos_acepta_dcprice_valido():
+    """Un crudo de GAOS con dcprice numérico se guarda y conserva sus campos."""
+    crudos = [
+        {
+            "ulistingid": "gaos-precio-valido",
+            "vctitle": "Casa con precio válido",
+            "vcaddress": "Calle 10, Vedado",
+            "dcprice": 150000,
+            # Señuelo: GAOS debe validar dcprice, no este campo.
+            "precio": "valor de otra estructura",
+            "vccurrencytype": "USD",
+        }
+    ]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ruta_crudo = Path(tmpdir) / "crudo"
+        ruta_procesado = Path(tmpdir) / "procesado"
+
+        id_captura = guardar_captura_completa(
+            crudos, ruta_crudo, ruta_procesado
+        )
+
+        assert id_captura is not None
+        resultado = leer_captura(id_captura, ruta_crudo, ruta_procesado)
+
+    assert resultado is not None
+    assert resultado["crudo"]["datos"][0]["dcprice"] == 150000
+    procesado = resultado["procesado"]["datos"][0]
+    assert procesado["precio"] == 150000
+    assert procesado["moneda"] == "USD"
+    assert procesado["titulo"] == "Casa con precio válido"
+    assert procesado["direccion_texto"] == "Calle 10, Vedado"
+    # La validación no modifica el crudo original.
+    assert crudos[0]["dcprice"] == 150000
+
+
+def test_validacion_gaos_rechaza_dcprice_ausente():
+    """Un crudo de GAOS sin el campo dcprice no se guarda."""
+    crudos = [
+        {
+            "ulistingid": "gaos-sin-precio",
+            "vctitle": "Casa sin campo de precio",
+            "vccurrencytype": "USD",
+        }
+    ]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ruta_crudo = Path(tmpdir) / "crudo"
+        ruta_procesado = Path(tmpdir) / "procesado"
+
+        id_captura = guardar_captura_completa(
+            crudos, ruta_crudo, ruta_procesado
+        )
+
+        assert id_captura is None
+        assert list(ruta_crudo.glob("gaos_crudo_*.json")) == []
+        assert list(ruta_procesado.glob("gaos_procesado_*.json")) == []
+
+
+@pytest.mark.parametrize("valor_invalido", ["no es un número", "", True])
+def test_validacion_gaos_rechaza_dcprice_no_numerico(valor_invalido):
+    """Un dcprice no numérico o booleano invalida el lote completo."""
+    crudos = [
+        {
+            "ulistingid": "gaos-precio-invalido",
+            "vctitle": "Casa con precio inválido",
+            "dcprice": valor_invalido,
+            # Señuelo: un precio válido en otro campo no debe salvar el crudo.
+            "precio": 150000,
+            "vccurrencytype": "USD",
+        }
+    ]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ruta_crudo = Path(tmpdir) / "crudo"
+        ruta_procesado = Path(tmpdir) / "procesado"
+
+        id_captura = guardar_captura_completa(
+            crudos, ruta_crudo, ruta_procesado
+        )
+
+        assert id_captura is None
+        assert list(ruta_crudo.glob("gaos_crudo_*.json")) == []
+        assert list(ruta_procesado.glob("gaos_procesado_*.json")) == []
+
+
+def test_validacion_revolico_acepta_precio_valido():
+    """Un crudo de Revolico con precio numérico se guarda correctamente."""
+    crudos = [dict(CRUDOS_REVOLICO_EJEMPLO[0])]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ruta_crudo = Path(tmpdir) / "crudo"
+        ruta_procesado = Path(tmpdir) / "procesado"
+
+        id_captura = guardar_captura_completa(
+            crudos,
+            ruta_crudo=ruta_crudo,
+            ruta_procesado=ruta_procesado,
+            mapear_func=mapear_anuncio_revolico,
+            prefijo_archivo="revolico",
+            fuente="revolico",
+        )
+
+        assert id_captura is not None
+        resultado = leer_captura(
+            id_captura, ruta_crudo, ruta_procesado, prefijo_archivo="revolico"
+        )
+
+    assert resultado is not None
+    assert resultado["crudo"]["datos"][0]["precio"] == 150000
+    assert resultado["procesado"]["datos"][0]["precio"] == 150000
+
+
+@pytest.mark.parametrize("caso", ["ausente", "no_numerico"])
+def test_validacion_revolico_rechaza_precio_ausente_o_invalido(caso):
+    """Revolico sigue rechazando un precio ausente o no numérico."""
+    crudo = dict(CRUDOS_REVOLICO_EJEMPLO[0])
+    if caso == "ausente":
+        crudo.pop("precio")
+    else:
+        crudo["precio"] = "no es un número"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ruta_crudo = Path(tmpdir) / "crudo"
+        ruta_procesado = Path(tmpdir) / "procesado"
+
+        id_captura = guardar_captura_completa(
+            [crudo],
+            ruta_crudo=ruta_crudo,
+            ruta_procesado=ruta_procesado,
+            mapear_func=mapear_anuncio_revolico,
+            prefijo_archivo="revolico",
+            fuente="revolico",
+        )
+
+        assert id_captura is None
+        assert list(ruta_crudo.glob("revolico_crudo_*.json")) == []
+        assert list(ruta_procesado.glob("revolico_procesado_*.json")) == []
+
+
 # --- Pruebas de integración: capturar_y_guardar (flujo extracción → almacenamiento) ---
 
 
@@ -514,7 +657,7 @@ def test_capturar_y_guardar_guarda_extraccion_exitosa():
         {
             "ulistingid": "abc-123",
             "vctitle": "Casa en venta",
-            "precio": 150000,
+            "dcprice": 150000,
             "vccurrencytype": "USD",
             "moneda": "USD",
         },
@@ -634,8 +777,9 @@ CRUDOS_GAOS_EJEMPLO = [
 def _anuncios_mapeados_desde_gaos(fecha_captura: str) -> list[AnuncioInmobiliario]:
     """Mapea datos crudos de GAOS al esquema común usando el mapeador.
 
-    Reutiliza los mismos diccionarios de mapeo que _datos_para_mapeo en
-    data.almacenamiento_anuncios, importados de sources.gaos.
+    Construye los objetos a partir de las mismas claves que usa
+    ``mapear_anuncio`` en ``sources.gaos`` para probar ``guardar_captura``
+    con anuncios ya mapeados.
     """
     from data.almacenamiento_anuncios import ACCOUNT_TYPE_MAP
 
@@ -759,13 +903,42 @@ def test_guardar_captura_guarda_campos_mapeados_desde_anuncio():
     assert a3["estado_conservacion"] == "regular"
     assert a3["vendedor_tipo"] is None
 
-    # Anuncio 3: gaos-003 con vendedor "realtor" (no mapeable) y condición mapeable
-    a3 = anuncios_proc[2]
-    assert a3["id_fuente"] == "gaos-003"
-    assert a3["tipo_operacion"] == "venta"
-    assert a3["tipo_inmueble"] == "casa"
-    assert a3["estado_conservacion"] == "regular"
-    assert a3["vendedor_tipo"] is None
+
+def test_guardar_captura_elimina_contacto_de_anuncios_mapeados():
+    """guardar_captura limpia el contacto de anuncios ya mapeados."""
+    anuncio = AnuncioInmobiliario(
+        fuente="gaos",
+        id_fuente="gaos-privacidad-002",
+        url="https://gaos.app/propiedades/gaos-privacidad-002",
+        fecha_captura="2026-11-01T00:00:00+00:00",
+        titulo="Casa en Playa 55500000",
+        descripcion="Casa amplia. WhatsApp 5355500000",
+        direccion_texto="Calle 3ra, Playa. Teléfono 55500000",
+        notas_calidad="Llamar al 55500000",
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ruta_crudo = Path(tmpdir) / "crudo"
+        ruta_procesado = Path(tmpdir) / "procesado"
+
+        id_captura = guardar_captura(
+            [{"id": "gaos-privacidad-002"}],
+            [anuncio],
+            ruta_crudo,
+            ruta_procesado,
+        )
+        resultado = leer_captura(id_captura, ruta_crudo, ruta_procesado)
+        assert resultado is not None
+
+    procesado = resultado["procesado"]["datos"][0]
+
+    assert "Casa en Playa" in procesado["titulo"]
+    assert "55500000" not in procesado["titulo"]
+    assert "Casa amplia" in procesado["descripcion"]
+    assert "whatsapp" not in procesado["descripcion"].lower()
+    assert "Calle 3ra, Playa" in procesado["direccion_texto"]
+    assert "Teléfono" not in procesado["direccion_texto"]
+    assert procesado["notas_calidad"] is None
 
 
 def test_guardar_captura_completa_guarda_campos_mapeados():
@@ -840,6 +1013,121 @@ def test_guardar_captura_completa_guarda_campos_mapeados():
     assert a3["titulo"] == "Casa con vendedor desconocido"
     # "realtor" no está en ACCOUNT_TYPE_MAP, por tanto debe ser None
     assert a3["vendedor_tipo"] is None
+
+
+def test_guardar_captura_completa_conserva_municipio_y_descripcion():
+    """Regresión E1: al guardar una captura de GAOS se conservan el municipio
+    y la descripción originales, sin inventar valores cuando faltan."""
+    crudos = [
+        {
+            "ulistingid": "gaos-con-ubicacion",
+            "vctitle": "Casa en Playa",
+            "vcaddress": "Calle 3ra, Playa",
+            "sdescription_eng": "Casa con patio y garaje.",
+            "dcprice": 45000,
+            "vccurrencytype": "USD",
+        },
+        {
+            "ulistingid": "gaos-sin-ubicacion",
+            "vctitle": "Casa en venta",
+            "vcaddress": None,
+            "sdescription_eng": None,
+            "sdescription_ita": None,
+            "dcprice": None,
+            "vccurrencytype": None,
+        },
+    ]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ruta_crudo = Path(tmpdir) / "crudo"
+        ruta_procesado = Path(tmpdir) / "procesado"
+
+        id_captura = guardar_captura_completa(
+            crudos, ruta_crudo, ruta_procesado
+        )
+        assert id_captura is not None
+
+        archivo_procesado = list(
+            ruta_procesado.glob("gaos_procesado_*.json")
+        )[0]
+        with open(archivo_procesado, "r", encoding="utf-8") as f:
+            datos_procesados = json.load(f)
+
+    completo, incompleto = datos_procesados["datos"]
+
+    # Con evidencia en título y dirección se conservan municipio y descripción
+    assert completo["municipio"] == "Playa"
+    assert completo["direccion_texto"] == "Calle 3ra, Playa"
+    assert completo["descripcion"] == "Casa con patio y garaje."
+
+    # Sin evidencia, los campos siguen siendo None (no se inventan valores)
+    assert incompleto["municipio"] is None
+    assert incompleto["direccion_texto"] is None
+    assert incompleto["descripcion"] is None
+
+
+def test_guardar_captura_completa_elimina_datos_personales_de_contacto():
+    """Las capturas nuevas no guardan teléfonos, WhatsApp ni publisher personal.
+
+    Se conservan el resto de la descripción y los campos útiles del anuncio.
+    """
+    crudos = [
+        {
+            "ulistingid": "gaos-privacidad-001",
+            "vctitle": "Casa en Playa 55500000",
+            "vcaddress": "Calle 3ra, Playa. WhatsApp 5355500000",
+            "sdescription_eng": (
+                "House with 2 bedrooms and garage. "
+                "Call +53 55500000 for more information."
+            ),
+            "dcprice": 45000,
+            "vccurrencytype": "USD",
+            "publisher": {
+                "accountType": "private",
+                "isVerified": True,
+                "name": "Persona de Prueba",
+                "phone": "55500000",
+                "avatarUrl": "https://example.com/avatar-ficticio",
+                "slug": "persona-de-prueba",
+            },
+        }
+    ]
+    original = json.loads(json.dumps(crudos))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ruta_crudo = Path(tmpdir) / "crudo"
+        ruta_procesado = Path(tmpdir) / "procesado"
+
+        id_captura = guardar_captura_completa(
+            crudos, ruta_crudo, ruta_procesado
+        )
+        assert id_captura is not None
+
+        resultado = leer_captura(id_captura, ruta_crudo, ruta_procesado)
+        assert resultado is not None
+
+    crudo = resultado["crudo"]["datos"][0]
+    procesado = resultado["procesado"]["datos"][0]
+
+    # Crudo guardado: se conserva el contenido inmobiliario sin contactos.
+    assert "Casa en Playa" in crudo["vctitle"]
+    assert "55500000" not in crudo["vctitle"]
+    assert "Calle 3ra, Playa" in crudo["vcaddress"]
+    assert "whatsapp" not in crudo["vcaddress"].lower()
+    assert "House with 2 bedrooms and garage" in crudo["sdescription_eng"]
+    assert "55500000" not in crudo["sdescription_eng"]
+    assert set(crudo["publisher"]) == {"accountType", "isVerified"}
+    assert crudo["publisher"]["accountType"] == "private"
+
+    # Procesado: tampoco conserva contactos y mantiene los datos útiles.
+    assert procesado["municipio"] == "Playa"
+    assert "Casa en Playa" in procesado["titulo"]
+    assert "55500000" not in procesado["titulo"]
+    assert "House with 2 bedrooms and garage" in procesado["descripcion"]
+    assert "55500000" not in procesado["descripcion"]
+
+    # La lista original no se modifica.
+    assert crudos == original
 
 
 # --- Pruebas de ampliación controlada ---
@@ -996,6 +1284,7 @@ def test_guardar_captura_completa_mapeador_personalizado_guarda_en_rutas_distint
             ruta_crudo=ruta_crudo,
             ruta_procesado=ruta_procesado,
             mapear_func=mi_mapeador,
+            fuente="fuente_prueba",
         )
 
         assert id_captura is not None
@@ -1065,7 +1354,12 @@ def test_dos_fuentes_guardan_en_carpetas_distintas():
         )
 
     crudos_fuente_a = [
-        {"id": "a-001", "titulo": "Anuncio A", "precio": 50000, "moneda": "USD"},
+        {
+            "ulistingid": "a-001",
+            "vctitle": "Anuncio A",
+            "dcprice": 50000,
+            "vccurrencytype": "USD",
+        },
     ]
     crudos_fuente_b = [
         {"id": "b-001", "titulo": "Anuncio B", "precio": 75000, "moneda": "USD"},
@@ -1085,6 +1379,7 @@ def test_dos_fuentes_guardan_en_carpetas_distintas():
             ruta_crudo=ruta_b_crudo,
             ruta_procesado=ruta_b_procesado,
             mapear_func=mi_mapeador,
+            fuente="fuente_b",
         )
 
         assert id_captura_a is not None

@@ -153,14 +153,21 @@ def extraer_listings(limite_paginas: Optional[int] = None) -> list[dict]:
     return todos
 
 
-def mapear_anuncio(dato: dict) -> AnuncioInmobiliario:
+def mapear_anuncio(
+    dato: dict, fecha_captura: Optional[str] = None
+) -> AnuncioInmobiliario:
     """Mapea un anuncio crudo de GAOS al esquema común `AnuncioInmobiliario`.
 
     No recopila datos personales de vendedores (nombres, teléfonos, WhatsApp).
     Los campos cuyo significado no esté confirmado se dejan como `None`.
+
+    Args:
+        dato: diccionario con el anuncio crudo de GAOS.
+        fecha_captura: fecha ISO 8601 de la captura. Si no se indica, se usa
+            la fecha y hora actuales.
     """
     # --- Trazabilidad y fuente ---
-    ahora = datetime.now(timezone.utc).isoformat()
+    ahora = fecha_captura or datetime.now(timezone.utc).isoformat()
     id_fuente = dato.get("ulistingid") or ""
 
     # --- Tipo de operación ---

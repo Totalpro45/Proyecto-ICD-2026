@@ -19,7 +19,7 @@ from sources.revolico import (
     _clasificar_tipo_inmueble,
     REVOLICO_URL,
 )
-from data.almacenamiento_anuncios import guardar_captura_completa
+from data.almacenamiento_anuncios import guardar_captura_completa, leer_captura
 from data.models import AnuncioInmobiliario
 
 
@@ -244,10 +244,13 @@ def test_capturar_y_guardar_revolico_guarda_captura():
         ruta_crudo = Path(tmpdir) / "revolico" / "crudo"
         ruta_procesado = Path(tmpdir) / "revolico" / "procesado"
 
-        id_captura = capturar_y_guardar_revolico(
-            ruta_crudo=ruta_crudo,
-            ruta_procesado=ruta_procesado,
-        )
+        with patch(
+            "sources.revolico.extraer_listings_revolico", return_value=crudos
+        ):
+            id_captura = capturar_y_guardar_revolico(
+                ruta_crudo=ruta_crudo,
+                ruta_procesado=ruta_procesado,
+            )
 
         assert id_captura is not None
 
@@ -275,10 +278,14 @@ def test_capturar_y_guardar_revolico_usa_rutas_por_defecto():
         ruta_crudo = Path(tmpdir) / "revolico" / "crudo"
         ruta_procesado = Path(tmpdir) / "revolico" / "procesado"
 
-        id_captura = capturar_y_guardar_revolico(
-            ruta_crudo=ruta_crudo,
-            ruta_procesado=ruta_procesado,
-        )
+        with patch(
+            "sources.revolico.extraer_listings_revolico", return_value=crudos
+        ), patch(
+            "sources.revolico.RUTA_CRUDO_DEFECTO_REVOLICO", ruta_crudo
+        ), patch(
+            "sources.revolico.RUTA_PROCESADO_DEFECTO_REVOLICO", ruta_procesado
+        ):
+            id_captura = capturar_y_guardar_revolico()
 
         assert id_captura is not None
 
@@ -372,6 +379,7 @@ def test_guardar_captura_completa_prefijo_guarda_archivos_con_prefijo_revolico()
             ruta_crudo=ruta_crudo,
             ruta_procesado=ruta_procesado,
             prefijo_archivo="revolico",
+            fuente="revolico",
         )
 
         assert id_captura is not None
@@ -404,6 +412,7 @@ def test_guardar_captura_completa_prefijo_por_defecto_es_gaos():
             crudos,
             ruta_crudo=ruta_crudo,
             ruta_procesado=ruta_procesado,
+            fuente="revolico",
         )
 
         assert id_captura is not None
@@ -436,10 +445,13 @@ def test_capturar_y_guardar_revolico_guarda_metadatos_revolico():
         ruta_crudo = Path(tmpdir) / "revolico" / "crudo"
         ruta_procesado = Path(tmpdir) / "revolico" / "procesado"
 
-        id_captura = capturar_y_guardar_revolico(
-            ruta_crudo=ruta_crudo,
-            ruta_procesado=ruta_procesado,
-        )
+        with patch(
+            "sources.revolico.extraer_listings_revolico", return_value=crudos
+        ):
+            id_captura = capturar_y_guardar_revolico(
+                ruta_crudo=ruta_crudo,
+                ruta_procesado=ruta_procesado,
+            )
 
         assert id_captura is not None
 
@@ -807,3 +819,52 @@ def test_mapear_anuncio_revolico_conserva_id_y_url():
     anuncio = mapear_anuncio_revolico(dato, "2026-11-07T12:00:00Z")
     assert anuncio.id_fuente == "58397137"
     assert anuncio.url == "https://www.revolico.com/item/oportunidad-en-playa-37-y-42-58397137?p"
+
+
+def test_guardar_captura_revolico_elimina_contacto_del_titulo():
+    """Las capturas nuevas de Revolico tampoco guardan teléfonos ni contacto."""
+    crudos = [
+        {
+            "id_fuente": "99999999",
+            "url": "https://www.revolico.com/item/casa-ficticia-99999999",
+            "precio": 50000,
+            "moneda": "USD",
+            "titulo": "Casa en Playa 55500000",
+            "descripcion": "Llamar al 55500000",
+        }
+    ]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ruta_crudo = Path(tmpdir) / "revolico" / "crudo"
+        ruta_procesado = Path(tmpdir) / "revolico" / "procesado"
+
+        id_captura = guardar_captura_completa(
+            crudos,
+            ruta_crudo=ruta_crudo,
+            ruta_procesado=ruta_procesado,
+            mapear_func=mapear_anuncio_revolico,
+            prefijo_archivo="revolico",
+            fuente="revolico",
+            url_fuente=REVOLICO_URL,
+        )
+        assert id_captura is not None
+
+        resultado = leer_captura(
+            id_captura,
+            ruta_crudo=ruta_crudo,
+            ruta_procesado=ruta_procesado,
+            prefijo_archivo="revolico",
+        )
+        assert resultado is not None
+
+    crudo = resultado["crudo"]["datos"][0]
+    procesado = resultado["procesado"]["datos"][0]
+
+    assert "Casa en Playa" in crudo["titulo"]
+    assert "55500000" not in crudo["titulo"]
+    assert crudo["descripcion"] is None
+
+    assert "Casa en Playa" in procesado["titulo"]
+    assert "55500000" not in procesado["titulo"]
+    assert procesado["descripcion"] is None
+    assert procesado["municipio"] == "Playa"
